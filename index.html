@@ -72,7 +72,10 @@
             <h2>Structures</h2>
             <div class="row-buttons">
               <button id="btn-add-structure" title="Add a structure (ADU, garage, barn)">+ Structure</button>
-              <button id="btn-add-area" title="Add an area to the selected structure">+ Area</button>
+              <details id="add-area" class="add-menu">
+                <summary title="Add an area to the selected structure">+ Area ▾</summary>
+                <div class="add-menu-body" id="add-area-list"></div>
+              </details>
             </div>
           </div>
           <div id="tree" class="tree"></div>
@@ -82,7 +85,7 @@
           <h2>Area</h2>
           <div class="form">
             <label>Name <input id="p-name" type="text" /></label>
-            <label>Kind
+            <label>Type
               <select id="p-kind">
                 <option value="living">Living</option>
                 <option value="garage">Garage</option>
@@ -237,7 +240,7 @@
           <h2>Structure</h2>
           <div class="form">
             <label>Name <input id="s-name" type="text" /></label>
-            <label>Kind
+            <label>Type
               <select id="s-kind">
                 <option value="dwelling">Dwelling</option>
                 <option value="adu">ADU</option>

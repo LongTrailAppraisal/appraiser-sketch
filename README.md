@@ -54,7 +54,10 @@ Backspace on the drawing, or Delete last wall, steps back one wall at a time.
 Decks, porches & patios, or type a custom one (and save it to My labels, kept
 in this browser; export or import the list from the ⚙ settings menu, which also
 holds the theme), and it is placed in the selected area; drag it into place,
-edit it, or press Delete to remove it. The sidebar shows Stairs and Ceilings & openings only for areas that have
+edit it, or press Delete to remove it. **+ Area** offers presets: next living floor, basement (below grade,
+unfinished, starting from the first-floor outline), finished basement,
+finished attic, garage, carport, porch, deck, patio, breezeway. Moving an
+area moves its stairs, ceiling zones and the labels inside it. The sidebar shows Stairs and Ceilings & openings only for areas that have
 them (add them from the Area panel), and every panel collapses by clicking
 its heading; the browser remembers which are collapsed. **Auto fit** (toolbar) keeps the whole sketch centred and in view as you draw;
 zooming or panning by hand turns it off, and F or Fit turns it back on. on an area with no walls yet, clicking the drawing

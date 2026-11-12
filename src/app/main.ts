@@ -33,6 +33,8 @@ import {
   deleteWall,
   type AreaResult,
   type Area,
+  type Structure,
+  containsPoint,
   type Side,
   type ZoneBand,
 } from "../geometry/index.js";
@@ -160,7 +162,7 @@ canvas.addEventListener(
 
 type Drag =
   | { kind: "pan"; startX: number; startY: number; ox: number; oy: number; at: Point; moved: boolean }
-  | { kind: "move"; sel: Selection; start: Point; origin: Point; key: string }
+  | { kind: "move"; sel: Selection; start: Point; origin: Point; key: string; carry?: string[] }
   | { kind: "handle"; sel: Selection; handle: StairHandleKey; key: string }
   | { kind: "label"; sel: Selection; start: Point; offset: Point; key: string }
   | { kind: "text"; id: string; start: Point; at: Point; key: string };
@@ -274,7 +276,7 @@ canvas.addEventListener("pointerdown", (e) => {
     const origin = dragOrigin(sel);
     if (origin) {
       dragSeq += 1;
-      drag = { kind: "move", sel, start: toWorld(view, p), origin: { ...origin }, key: `move:${sel.stair ?? sel.area}:${dragSeq}` };
+      drag = { kind: "move", sel, start: toWorld(view, p), origin: { ...origin }, key: `move:${sel.stair ?? sel.area}:${dragSeq}`, carry: textsInside(sel) };
     }
   } else {
     drag = { kind: "pan", startX: e.clientX, startY: e.clientY, ox: view.ox, oy: view.oy, at: toWorld(view, p), moved: false };
@@ -384,7 +386,15 @@ canvas.addEventListener("pointermove", (e) => {
           const z = f.area.zones.find((x) => x.id === d.sel.zone);
           if (z) z.origin = next;
         } else {
+          // The area moves as a group: its stairs, zones and the labels inside it go too.
+          const dx = next.x - f.area.origin.x;
+          const dy = next.y - f.area.origin.y;
+          const shift = (q: Point): Point => ({ x: q.x + dx, y: q.y + dy });
           f.area.origin = next;
+          for (const st of f.area.stairs ?? []) st.origin = shift(st.origin);
+          for (const z of f.area.zones) z.origin = shift(z.origin);
+          const carry = new Set(d.carry ?? []);
+          for (const t of draft.texts ?? []) if (carry.has(t.id)) t.at = shift(t.at);
         }
       },
       { coalesce: d.key },
@@ -1470,22 +1480,111 @@ function drawToolbar() {
   document.title = `${dirty ? "• " : ""}${files.name ?? "Sketch"}`;
 }
 
+/** Ids of the room labels inside an area's outline (for moving them with it). */
+function textsInside(sel: Selection): string[] {
+  if (sel.stair || sel.zone) return [];
+  const ar = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === sel.area);
+  if (!ar) return [];
+  const poly = flatten(ar.shape.path);
+  if (poly.length < 3) return [];
+  return (store.state.sketch.texts ?? []).filter((t) => containsPoint(poly, t.at)).map((t) => t.id);
+}
+
 function nextFreeOrigin(): Point {
   const b = sketchBounds();
   return b ? { x: Math.ceil(b.maxX) + 6, y: Math.floor(b.minY) } : { x: 0, y: 0 };
 }
 
-$("btn-add-area").addEventListener("click", () => {
+// ---------- add-area menu ----------
+
+const ORDINALS = ["First", "Second", "Third", "Fourth", "Fifth"];
+
+interface AreaPreset {
+  id: string;
+  label: string;
+  hint?: string;
+  make(s: Structure): Partial<Area>;
+}
+
+/** Outline of the structure's main above-grade floor, to start a basement from. */
+function mainFloor(s: Structure): Area | undefined {
+  return s.areas.find((a) => a.kind === "living" && a.grade === "above" && a.level === "1" && a.vectors.trim() !== "");
+}
+
+const AREA_PRESETS: (AreaPreset | "sep")[] = [
+  {
+    id: "floor",
+    label: "Living floor",
+    hint: "next level up, finished",
+    make: (s) => {
+      const levels = s.areas.filter((a) => a.kind === "living" && a.grade === "above").map((a) => Number(a.level)).filter(Number.isFinite);
+      const level = levels.length ? Math.max(...levels) + 1 : 1;
+      return { name: `${ORDINALS[level - 1] ?? `Level ${level}`} floor`, level: String(level) };
+    },
+  },
+  {
+    id: "basement",
+    label: "Basement (unfinished)",
+    hint: "below grade; copies the first floor outline",
+    make: (s) => ({ name: "Basement", level: "basement", grade: "below", finished: false, vectors: mainFloor(s)?.vectors ?? "" }),
+  },
+  {
+    id: "basement-fin",
+    label: "Finished basement area",
+    hint: "below grade, finished",
+    make: () => ({ name: "Finished basement", level: "basement", grade: "below", finished: true }),
+  },
+  {
+    id: "attic",
+    label: "Finished attic",
+    hint: "above grade; add low-ceiling zones",
+    make: () => ({ name: "Attic", level: "attic" }),
+  },
+  "sep",
+  { id: "garage", label: "Garage", make: () => ({ name: "Garage", kind: "garage" }) },
+  { id: "carport", label: "Carport", make: () => ({ name: "Carport", kind: "carport" }) },
+  { id: "porch", label: "Porch", make: () => ({ name: "Porch", kind: "porch" }) },
+  { id: "deck", label: "Deck", make: () => ({ name: "Deck", kind: "deck" }) },
+  { id: "patio", label: "Patio", make: () => ({ name: "Patio", kind: "patio" }) },
+  { id: "breezeway", label: "Breezeway", make: () => ({ name: "Breezeway", kind: "breezeway" }) },
+  { id: "other", label: "Other", make: () => ({ name: "Other", kind: "other" }) },
+];
+
+$("add-area-list").innerHTML = AREA_PRESETS.map((p) =>
+  p === "sep" ? "<hr />" : `<button data-preset="${p.id}">${esc(p.label)}${p.hint ? `<small>${esc(p.hint)}</small>` : ""}</button>`,
+).join("");
+
+$("add-area-list").addEventListener("click", (e) => {
+  const id = (e.target as Element).closest("[data-preset]")?.getAttribute("data-preset");
+  const preset = AREA_PRESETS.find((p): p is AreaPreset => p !== "sep" && p.id === id);
+  if (!preset) return;
+  $<HTMLDetailsElement>("add-area").open = false;
   const sel = store.state.selection;
   const origin = nextFreeOrigin();
   store.update((draft) => {
     const s = draft.structures.find((x) => x.id === sel?.structure) ?? draft.structures[0];
     if (!s) return null;
-    const a = newArea({ origin });
+    const a = newArea({ origin, ...preset.make(s) });
     s.areas.push(a);
     return { structure: s.id, area: a.id };
   });
   vectors.focus();
+  vectors.setSelectionRange(vectors.value.length, vectors.value.length);
+});
+
+// The sidebar scrolls (and clips), so place the menu on the page under its button.
+$<HTMLDetailsElement>("add-area").addEventListener("toggle", () => {
+  const m = $<HTMLDetailsElement>("add-area");
+  if (!m.open) return;
+  const r = m.querySelector("summary")!.getBoundingClientRect();
+  const body = $("add-area-list");
+  body.style.left = `${Math.round(r.left)}px`;
+  body.style.top = `${Math.round(r.bottom + 4)}px`;
+});
+
+document.addEventListener("pointerdown", (e) => {
+  const m = $<HTMLDetailsElement>("add-area");
+  if (m.open && !m.contains(e.target as Node)) m.open = false;
 });
 
 $("btn-add-structure").addEventListener("click", () => {
