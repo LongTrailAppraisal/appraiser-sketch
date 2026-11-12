@@ -26,6 +26,7 @@ import {
   type Path,
   type Point,
 } from "./path.js";
+import { formatFeetInches } from "./units.js";
 import { parseVectors, type VectorError } from "./vectors.js";
 
 export const FORMAT_VERSION = 1;
@@ -116,6 +117,15 @@ export interface AreaResult {
   problems: string[];
 }
 
+/** The move that would close an outline, e.g. "D1'2\"" or "R3' U1'". */
+export function closingMove(dx: number, dy: number): string {
+  const parts: string[] = [];
+  const tol = 1 / 24; // under half an inch rounds to nothing
+  if (Math.abs(dx) >= tol) parts.push(`${dx > 0 ? "R" : "L"}${formatFeetInches(Math.abs(dx))}`);
+  if (Math.abs(dy) >= tol) parts.push(`${dy > 0 ? "U" : "D"}${formatFeetInches(Math.abs(dy))}`);
+  return parts.join(" ") || "under 1/2\"";
+}
+
 const EDGE_TOL = 1e-6;
 
 function onSegment(p: Point, a: Point, b: Point): boolean {
@@ -147,8 +157,8 @@ export function computeArea(area: Area, opts: { ansi?: boolean } = {}): AreaResu
   for (const e of shape.errors) problems.push(`"${e.text}": ${e.message}`);
   if (!shape.closure.closed && shape.path.segments.length > 0) {
     problems.push(
-      `outline does not close: misses the start by ${shape.closure.distance.toFixed(2)}' ` +
-        `(dx ${shape.closure.dx.toFixed(2)}, dy ${shape.closure.dy.toFixed(2)}); area assumes a straight closing wall`,
+      `outline does not close: misses the start by ${formatFeetInches(shape.closure.distance)} ` +
+        `(${closingMove(shape.closure.dx, shape.closure.dy)} to close); area assumes a straight closing wall`,
     );
   }
   if (shape.selfIntersects) problems.push("outline crosses itself; area is not reliable");

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Sketch</title>
+    <link rel="stylesheet" href="/src/app/style.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <span class="brand">Sketch</span>
+      <div class="group">
+        <button id="btn-new" title="New sketch">New</button>
+        <button id="btn-open" title="Open (Ctrl+O)">Open</button>
+        <button id="btn-save" title="Save (Ctrl+S)">Save</button>
+        <button id="btn-save-as" title="Save as (Ctrl+Shift+S)">Save as</button>
+      </div>
+      <div class="group">
+        <button id="btn-undo" title="Undo (Ctrl+Z)">Undo</button>
+        <button id="btn-redo" title="Redo (Ctrl+Y)">Redo</button>
+      </div>
+      <div class="group">
+        <button id="btn-fit" title="Fit sketch to window (F)">Fit</button>
+      </div>
+      <label class="toggle" title="Apply ANSI Z765 rules"><input type="checkbox" id="ansi-mode" checked /> ANSI Z765</label>
+      <span id="file-status" class="file-status"></span>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Structures</h2>
+            <div class="row-buttons">
+              <button id="btn-add-structure" title="Add a structure (ADU, garage, barn)">+ Structure</button>
+              <button id="btn-add-area" title="Add an area to the selected structure">+ Area</button>
+            </div>
+          </div>
+          <div id="tree" class="tree"></div>
+        </section>
+
+        <section class="panel" id="props">
+          <h2>Area</h2>
+          <div class="form">
+            <label>Name <input id="p-name" type="text" /></label>
+            <label>Kind
+              <select id="p-kind">
+                <option value="living">Living</option>
+                <option value="garage">Garage</option>
+                <option value="porch">Porch</option>
+                <option value="deck">Deck</option>
+                <option value="patio">Patio</option>
+                <option value="carport">Carport</option>
+                <option value="breezeway">Breezeway</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <div class="living-only">
+              <label>Level <input id="p-level" type="text" list="level-list" /></label>
+              <datalist id="level-list">
+                <option value="1"></option>
+                <option value="2"></option>
+                <option value="3"></option>
+                <option value="attic"></option>
+                <option value="basement"></option>
+              </datalist>
+              <label>Grade
+                <select id="p-grade">
+                  <option value="above">Above grade</option>
+                  <option value="below">Below grade (any part)</option>
+                </select>
+              </label>
+              <label>Ceiling
+                <select id="p-ceiling">
+                  <option value="full">7' or more</option>
+                  <option value="reduced">5' to 7'</option>
+                  <option value="low">Under 5'</option>
+                </select>
+              </label>
+              <label class="check"><input id="p-finished" type="checkbox" /> Finished</label>
+              <label class="check"><input id="p-connected" type="checkbox" /> Connected to finished space</label>
+            </div>
+            <div class="pair">
+              <label>Start x <input id="p-ox" type="text" inputmode="decimal" /></label>
+              <label>Start y <input id="p-oy" type="text" inputmode="decimal" /></label>
+            </div>
+            <details id="override-box">
+              <summary>Override ANSI</summary>
+              <label class="check"><input id="p-override" type="checkbox" /> Report this area as</label>
+              <select id="p-override-bucket"></select>
+              <label>Reason (required) <textarea id="p-override-note" rows="2"></textarea></label>
+            </details>
+            <div class="row-buttons">
+              <button id="btn-delete-area" class="danger">Delete area</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="structure-props">
+          <h2>Structure</h2>
+          <div class="form">
+            <label>Name <input id="s-name" type="text" /></label>
+            <label>Kind
+              <select id="s-kind">
+                <option value="dwelling">Dwelling</option>
+                <option value="adu">ADU</option>
+                <option value="garage">Detached garage</option>
+                <option value="outbuilding">Outbuilding</option>
+              </select>
+            </label>
+            <div class="row-buttons">
+              <button id="btn-delete-structure" class="danger">Delete structure</button>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <section class="work">
+        <div id="canvas" class="canvas" tabindex="0" aria-label="Sketch drawing"></div>
+        <div class="vector-bar">
+          <label for="vectors" class="vector-label">Walls</label>
+          <textarea id="vectors" rows="2" spellcheck="false" autocomplete="off"
+            placeholder="R24 U30 L24 D30   ·   R24'6&quot;   ·   UR10 (45°)   ·   R10U5 (slope)   ·   A30:12 (angle)   ·   R20^3 (arc)   ·   CL (close)"></textarea>
+          <div id="vector-status" class="vector-status"></div>
+        </div>
+      </section>
+
+      <aside class="totals">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Area table</h2>
+            <button id="btn-copy" title="Copy the totals as plain text for pasting into the report">Copy totals</button>
+          </div>
+          <div id="table"></div>
+        </section>
+      </aside>
+    </main>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/app/main.ts"></script>
+  </body>
+</html>

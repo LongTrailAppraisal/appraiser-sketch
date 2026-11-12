@@ -1,8 +1,9 @@
 # Sketch — specification
 
 Working name: **sketch** (final name TBD — must be generic and not trademarked).
-Status: draft 1, 2026-11-12. Phase 1 geometry module (`src/geometry/`) built
-and tested; UI not started.
+Status: draft 1, 2026-11-12. Phase 1 geometry module built and tested; first
+drawing screen working (see README). Still to do in phase 1: templates,
+stairs, zones editor, print/PDF, PNG, workfile folder memory.
 
 ## 1. Purpose
 

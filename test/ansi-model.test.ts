@@ -160,7 +160,7 @@ describe("model", () => {
     expect(r.zones[0]!.inside).toBe(false);
     const text = r.problems.join("\n");
     expect(text).toMatch(/"Q": unknown move/);
-    expect(text).toMatch(/does not close: misses the start by 1.00'/);
+    expect(text).toMatch(/does not close: misses the start by 1' \(D1' to close\)/);
     expect(text).toMatch(/knee wall: extends outside/);
   });
 

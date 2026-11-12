@@ -4,7 +4,10 @@ Open-source floor sketch and ANSI Z765 area calculator for residential
 appraisers. Browser app, local files, no server. Working name.
 
 Status: the geometry module (vector entry, area math, ANSI rules) is built and
-tested. The drawing UI and exports are next. See `docs/SPEC.md`.
+tested, and the first drawing screen works: live drawing as you type, dimension
+labels, multiple areas and structures, drag with corner snapping, undo/redo,
+area table, copy totals, open/save `.sketch.json`, draft recovery. Templates,
+stairs, print/PDF and PNG are next. See `docs/SPEC.md`.
 
 ## Vector entry
 
@@ -25,11 +28,18 @@ count as area on the floor above, per ANSI Z765.
 
 ```
 npm install
+npm run dev       # open http://localhost:5173
 npm test          # Vitest
 npm run typecheck
+npm run build     # static site in dist/
 ```
 
 Layout: `src/geometry/` is pure TypeScript with no DOM (units, vectors, path,
-ansi, model); tests in `test/`.
+ansi, model); `src/app/` is the screen (store with undo, SVG renderer, files,
+main); `src/export/` holds the paste-ready text; tests in `test/`.
+
+On the canvas: drag an area to move it (snaps to other areas' corners, or to
+6" grid; hold Alt for free movement), drag empty space to pan, wheel to zoom,
+F to fit. Ctrl+Z / Ctrl+Y undo and redo, Ctrl+S save, Ctrl+O open.
 
 License: MIT (see LICENSE).

@@ -179,7 +179,7 @@ export function classify(input: AnsiInput, opts: ClassifyOptions = {}): AnsiResu
   // ANSI: ceilings under 5' never count; at least half of the counted (≥5') area must be ≥7'.
   const countable = band.full + band.reduced;
   if (countable <= TOL) {
-    warnings.push("no part of this area has a ceiling of 5' or more; not counted as finished");
+    if (gross > TOL) warnings.push("no part of this area has a ceiling of 5' or more; not counted as finished");
     return result("excluded", 0);
   }
   if (band.full + TOL < countable / 2) {
