@@ -1,0 +1,162 @@
+import { describe, expect, it } from "vitest";
+import {
+  area,
+  bounds,
+  closure,
+  parseVectors,
+  perimeter,
+  selfIntersects,
+  type Path,
+} from "../src/geometry/index.js";
+
+const shape = (text: string): Path => {
+  const r = parseVectors(text);
+  expect(r.errors).toEqual([]);
+  return r.path;
+};
+
+/** Circular segment area by the classic formula, independent of the implementation's 4·atan form. */
+function segmentArea(chord: number, s: number): number {
+  const r = (chord * chord) / (8 * s) + s / 2;
+  return r * r * Math.acos((r - s) / r) - (r - s) * Math.sqrt(2 * r * s - s * s);
+}
+
+describe("rectilinear outlines", () => {
+  it("rectangle 24 x 30", () => {
+    const p = shape("R24 U30 L24 D30");
+    expect(area(p)).toBeCloseTo(720, 9);
+    expect(perimeter(p)).toBeCloseTo(108, 9);
+    expect(closure(p).closed).toBe(true);
+  });
+
+  it("clockwise gives the same area", () => {
+    expect(area(shape("U30 R24 D30 L24"))).toBeCloseTo(720, 9);
+  });
+
+  it("L-shape: 40x24 plus 24x12 = 1,248", () => {
+    expect(area(shape("R40 U24 L16 U12 L24 D36"))).toBeCloseTo(1248, 9);
+  });
+
+  it("feet-inches", () => {
+    expect(area(shape("R24'6\" U30 L24'6\" D30"))).toBeCloseTo(735, 9);
+  });
+
+  it("compass letters, commas and new lines", () => {
+    expect(area(shape("E24, N30\nW24, S30"))).toBeCloseTo(720, 9);
+  });
+
+  it("comments are ignored to end of line", () => {
+    expect(area(shape("R24 U30 # front\nL24 D30 # side"))).toBeCloseTo(720, 9);
+  });
+});
+
+describe("diagonals and angles", () => {
+  it("run/rise diagonal: right triangle 10 x 10 = 50", () => {
+    expect(area(shape("R10 U10 L10D10"))).toBeCloseTo(50, 9);
+  });
+
+  it("45° wall measured along the wall", () => {
+    const { path } = parseVectors("UR10");
+    const end = path.segments[0]!.to;
+    expect(end.x).toBeCloseTo(10 / Math.SQRT2, 12);
+    expect(end.y).toBeCloseTo(10 / Math.SQRT2, 12);
+  });
+
+  it("45° bay: 16' front wall with a 2' deep bay, 12' house depth", () => {
+    // Front: R4, 45° out 2'√2, R4 across the bay, 45° back, R4. Bay is a trapezoid of (8+4)/2*2 = 12 sf.
+    const d = 2 * Math.SQRT2;
+    const p = shape(`R4 DR${d} R4 UR${d} R4 U12 L16 D12`);
+    expect(area(p)).toBeCloseTo(16 * 12 + 12, 9);
+  });
+
+  it("polar moves", () => {
+    const { path } = parseVectors("A90:10 A30:12");
+    expect(path.segments[0]!.to.x).toBe(0);
+    expect(path.segments[0]!.to.y).toBeCloseTo(10, 12);
+    expect(path.segments[1]!.to.x).toBeCloseTo(12 * Math.cos(Math.PI / 6), 12);
+  });
+});
+
+describe("arcs", () => {
+  it("semicircle: chord 20, depth 10", () => {
+    const p = shape("R20^10 CL");
+    expect(area(p)).toBeCloseTo((Math.PI * 100) / 2, 9);
+    expect(perimeter(p)).toBeCloseTo(10 * Math.PI + 20, 9);
+  });
+
+  it("outward bay on a CCW rectangle adds a segment and bulges outside", () => {
+    const p = shape("R20^3 U10 L20 D10");
+    expect(area(p)).toBeCloseTo(200 + segmentArea(20, 3), 9);
+    expect(bounds(p).minY).toBeCloseTo(-3, 3);
+  });
+
+  it("outward bay on a CW rectangle also adds and bulges outside", () => {
+    const p = shape("U10 R20 D10 L20^3");
+    expect(area(p)).toBeCloseTo(200 + segmentArea(20, 3), 9);
+    expect(bounds(p).minY).toBeCloseTo(-3, 3);
+  });
+
+  it("inward arc subtracts", () => {
+    const p = shape("R20^-3 U10 L20 D10");
+    expect(area(p)).toBeCloseTo(200 - segmentArea(20, 3), 9);
+    expect(bounds(p).minY).toBeCloseTo(0, 9);
+  });
+
+  it("arc deeper than a semicircle", () => {
+    // chord 6, depth 9: r = 36/72 + 4.5 = 5; most of a circle of radius 5.
+    const p = shape("R6^9 CL");
+    expect(area(p)).toBeCloseTo(segmentArea(6, 9), 9);
+    expect(area(p)).toBeGreaterThan((Math.PI * 25) / 2);
+  });
+});
+
+describe("closing and errors", () => {
+  it("CL adds the closing wall", () => {
+    const p = shape("R24 U30 L24 CL");
+    expect(p.segments).toHaveLength(4);
+    expect(closure(p).closed).toBe(true);
+    expect(area(p)).toBeCloseTo(720, 9);
+  });
+
+  it("CL snaps a near miss (under 1/8\") onto the start", () => {
+    const p = shape("R24 U30 L24 D29.995 CL");
+    expect(p.segments).toHaveLength(4);
+    expect(p.segments[3]!.to).toEqual({ x: 0, y: 0 });
+  });
+
+  it("reports misclosure like a traverse", () => {
+    const c = closure(shape("R24 U30 L24 D29"));
+    expect(c.closed).toBe(false);
+    expect(c.dy).toBeCloseTo(-1, 9);
+    expect(c.distance).toBeCloseTo(1, 9);
+  });
+
+  it("bad tokens are reported and skipped", () => {
+    const r = parseVectors("R24 X5 U30 R10L5 L24 D30 R0");
+    expect(r.errors.map((e) => [e.token, e.text])).toEqual([
+      [1, "X5"],
+      [3, "R10L5"],
+      [6, "R0"],
+    ]);
+    expect(r.errors[0]!.offset).toBe(4);
+    expect(area(r.path)).toBeCloseTo(720, 9);
+  });
+
+  it("moves after CL are errors", () => {
+    const r = parseVectors("R10 U10 L10 CL R5");
+    expect(r.errors).toHaveLength(1);
+    expect(r.errors[0]!.message).toMatch(/after CL/);
+  });
+
+  it("detects a self-crossing outline", () => {
+    expect(selfIntersects(shape("R10 L10U10 R10 L10D10"))).toBe(true);
+    expect(selfIntersects(shape("R40 U24 L16 U12 L24 D36"))).toBe(false);
+    expect(selfIntersects(shape("R20^3 U10 L20 D10"))).toBe(false);
+  });
+
+  it("starts at the given origin", () => {
+    const { path } = parseVectors("R10 U10 L10 D10", { x: 40, y: 5 });
+    expect(path.segments[0]!.from).toEqual({ x: 40, y: 5 });
+    expect(area(path)).toBeCloseTo(100, 9);
+  });
+});

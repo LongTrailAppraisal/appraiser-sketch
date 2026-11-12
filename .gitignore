@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Real appraisal sketches (client-confidential) - never commit
+test/fixtures/private/
