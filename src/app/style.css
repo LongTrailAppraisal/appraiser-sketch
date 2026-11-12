@@ -208,6 +208,9 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
 }
 .labels .area-label text { pointer-events: auto; cursor: move; }
 .labels .area-label.selected .area-name { fill: var(--accent); }
+.corner { fill: var(--canvas); stroke: var(--muted); stroke-width: 1.2; cursor: pointer; opacity: 0.85; }
+.corner:hover { stroke: var(--accent); }
+.corner.active { fill: var(--accent); stroke: var(--accent); opacity: 1; }
 .handle { fill: var(--canvas); stroke: var(--accent); stroke-width: 2; cursor: grab; }
 .handle:hover { fill: var(--accent); }
 .dim { fill: var(--muted) !important; font-variant-numeric: tabular-nums; }
@@ -238,6 +241,9 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
 .vector-status { grid-column: 2; color: var(--muted); min-height: 1.4em; font-variant-numeric: tabular-nums; }
 .vector-status .ok { color: var(--ok); }
 .vector-status .bad { color: var(--warn); }
+.vector-status .actions { margin-top: 2px; }
+.vector-status .hint { color: var(--muted); }
+button.inline { padding: 0 7px; font-size: 12px; color: var(--accent); }
 .vector-status ul { margin: 2px 0 0; padding-left: 18px; color: var(--warn); }
 
 #table table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-variant-numeric: tabular-nums; }

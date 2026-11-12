@@ -26,6 +26,9 @@ import {
   checkTemplate,
   ZONE_BANDS,
   stripZone,
+  applyArrow,
+  closeOutline,
+  openAtCorner,
   type AreaResult,
   type Area,
   type Side,
@@ -56,6 +59,9 @@ function size() {
   return { width: Math.max(1, Math.round(r.width)), height: Math.max(1, Math.round(r.height)) };
 }
 
+/** Corner of the selected area picked for Open here (UI state, not saved). */
+let activeCorner: { area: string; index: number } | null = null;
+
 let showGrid = true;
 try {
   showGrid = localStorage.getItem("sketch:grid") !== "off";
@@ -65,7 +71,9 @@ try {
 
 function drawCanvas() {
   const { width, height } = size();
-  canvas.innerHTML = renderSketch(result, { width, height, view, selection: store.state.selection, grid: showGrid });
+  const sel = store.state.selection;
+  const corner = activeCorner && sel?.area === activeCorner.area && !sel.stair && !sel.zone ? activeCorner.index : null;
+  canvas.innerHTML = renderSketch(result, { width, height, view, selection: sel, grid: showGrid, activeCorner: corner });
 }
 
 function sketchBounds() {
@@ -177,6 +185,15 @@ canvas.addEventListener("pointerdown", (e) => {
     canvas.setPointerCapture(e.pointerId);
   } catch {
     /* synthetic or already-released pointer */
+  }
+  const cornerEl = el.closest("[data-corner]");
+  if (cornerEl && e.button === 0) {
+    const area = cornerEl.getAttribute("data-area")!;
+    const index = Number(cornerEl.getAttribute("data-corner"));
+    activeCorner = activeCorner?.area === area && activeCorner.index === index ? null : { area, index };
+    drawCanvas();
+    drawVectorBar();
+    return;
   }
   const handleEl = el.closest("[data-handle]");
   const labelEl = el.closest("[data-label]");
@@ -799,6 +816,32 @@ vectors.addEventListener("input", () => {
   }
 });
 
+const ARROWS: Record<string, "up" | "down" | "left" | "right"> = {
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
+};
+
+/** "30" then an arrow key → "U30 ". Returns true if it handled the key. */
+function arrowIntoWalls(key: string, atEnd: boolean): boolean {
+  const dir = ARROWS[key];
+  if (!dir || vectors.disabled) return false;
+  const caret = atEnd ? vectors.value.length : (vectors.selectionStart ?? vectors.value.length);
+  if (!atEnd && vectors.selectionStart !== vectors.selectionEnd) return false;
+  const r = applyArrow(vectors.value, caret, dir);
+  if (!r) return false;
+  vectors.value = r.text;
+  vectors.setSelectionRange(r.caret, r.caret);
+  vectors.dispatchEvent(new Event("input"));
+  return true;
+}
+
+vectors.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+  if (arrowIntoWalls(e.key, false)) e.preventDefault();
+});
+
 const vectorLabel = document.querySelector<HTMLLabelElement>(".vector-label")!;
 
 /** One line on how the area's ceiling zones and openings are counted. */
@@ -857,10 +900,46 @@ function drawVectorBar() {
     );
   parts.push(`${formatSqFt(sh.area)} sf`, `perimeter ${formatFeetInches(sh.perimeter)}`);
   if (r.ansi.bucket !== "excluded" || r.ansi.counted > 0) parts.push(`→ ${BUCKET_LABELS[r.ansi.bucket]} ${formatSqFt(r.ansi.counted)} sf`);
+  const actions: string[] = [];
+  const cornerHere = activeCorner?.area === r.area.id ? activeCorner.index : null;
+  if (sh.closure.closed && cornerHere !== null) {
+    actions.push(`Corner ${cornerHere + 1}: <button class="inline" data-action="open">Open here</button> (removes the wall leaving this corner so you can redraw from it)`);
+  } else if (sh.closure.closed) {
+    actions.push(`<span class="hint">Click a corner to open the outline there for editing.</span>`);
+  } else {
+    actions.push(`<button class="inline" data-action="close">Close</button> with a straight wall, or keep typing back to the start.`);
+  }
   const problems = r.problems.filter((p) => !p.startsWith("outline does not close"));
   vstatus.innerHTML =
-    parts.join(" · ") + zoneBreakdown(r) + (problems.length ? `<ul>${problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "");
+    parts.join(" · ") +
+    zoneBreakdown(r) +
+    `<div class="actions">${actions.join(" ")}</div>` +
+    (problems.length ? `<ul>${problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "");
 }
+
+vstatus.addEventListener("click", (e) => {
+  const action = (e.target as Element).closest("[data-action]")?.getAttribute("data-action");
+  const f = findArea(store.state.sketch, store.state.selection);
+  if (!action || !f) return;
+  if (action === "open" && activeCorner?.area === f.area.id) {
+    const r = openAtCorner(f.area.vectors, f.area.origin, activeCorner.index);
+    if (!r) return;
+    activeCorner = null;
+    editArea((a) => {
+      a.vectors = r.vectors;
+      a.origin = r.origin;
+    });
+    external = true;
+    drawVectorBar();
+    external = false;
+    vectors.focus();
+    vectors.setSelectionRange(vectors.value.length, vectors.value.length);
+    say("Opened: type walls from the corner, back to the start to close");
+  } else if (action === "close") {
+    editArea((a) => (a.vectors = closeOutline(a.vectors)));
+    vectors.focus();
+  }
+});
 
 // ---------- templates ----------
 
@@ -1219,6 +1298,11 @@ document.addEventListener("keydown", (e) => {
     fit();
   } else if (!mod && !e.altKey && k === "t" && document.activeElement === canvas && store.state.selection?.stair) {
     rotateStair();
+  } else if (!mod && !e.altKey && !e.shiftKey && document.activeElement === canvas && e.key in ARROWS) {
+    if (arrowIntoWalls(e.key, true)) {
+      e.preventDefault();
+      vectors.focus();
+    }
   } else if (!mod && !e.altKey && e.key.length === 1 && document.activeElement === canvas && k !== "f") {
     // Typing on the drawing goes into the walls box, as in other sketch programs.
     e.preventDefault();

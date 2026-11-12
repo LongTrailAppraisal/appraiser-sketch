@@ -157,6 +157,8 @@ export interface RenderOptions {
   grid?: boolean;
   /** Draw interactive extras: start/pen marks, stair handles (default true; off for print). */
   interactive?: boolean;
+  /** Corner of the selected area picked for editing. */
+  activeCorner?: number | null;
 }
 
 /** Where an area's label sits: outline centre plus the saved offset. */
@@ -225,6 +227,17 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
         const end = toScreen(v, r.shape.path.segments[r.shape.path.segments.length - 1]!.to);
         const start = toScreen(v, r.shape.path.start);
         parts.push(`<line class="misclosure" x1="${n(end.x)}" y1="${n(end.y)}" x2="${n(start.x)}" y2="${n(start.y)}"/>`);
+      }
+      if (areaSelected && interactive && r.shape.closure.closed && pts.length >= 3) {
+        // Clickable corners for "Open here".
+        const cs = [r.shape.path.start, ...r.shape.path.segments.map((sg) => sg.to)].slice(0, r.shape.path.segments.length);
+        cs.forEach((c, i) => {
+          const p = toScreen(v, c);
+          const on = opts.activeCorner === i;
+          handles.push(
+            `<circle class="corner${on ? " active" : ""}" ${data} data-corner="${i}" cx="${n(p.x)}" cy="${n(p.y)}" r="${on ? 7 : 5}"><title>Corner ${i + 1}: click to open the outline here</title></circle>`,
+          );
+        });
       }
       if (selected && interactive) {
         const pen = toScreen(v, r.shape.path.segments.at(-1)?.to ?? r.shape.path.start);

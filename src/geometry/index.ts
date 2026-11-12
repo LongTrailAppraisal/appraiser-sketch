@@ -6,3 +6,4 @@ export * from "./model.js";
 export * from "./stairs.js";
 export * from "./templates.js";
 export * from "./zones.js";
+export * from "./edit.js";

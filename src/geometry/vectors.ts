@@ -24,6 +24,8 @@ export interface VectorError {
 export interface ParseResult {
   path: Path;
   errors: VectorError[];
+  /** The token that made each segment (same order as path.segments); null for a wall added by CL. */
+  sources: (string | null)[];
 }
 
 const UNIT: Record<string, Point> = {
@@ -122,6 +124,7 @@ function parseToken(tok: string): TokenResult {
 export function parseVectors(text: string, start: Point = { x: 0, y: 0 }): ParseResult {
   const errors: VectorError[] = [];
   const segments: Segment[] = [];
+  const sources: (string | null)[] = [];
   let at = { ...start };
   let index = 0;
   let closed = false;
@@ -148,6 +151,7 @@ export function parseVectors(text: string, start: Point = { x: 0, y: 0 }): Parse
       const last = segments[segments.length - 1];
       if (gap > CLOSE_TOLERANCE_FT) {
         segments.push({ kind: "line", from: at, to: { ...start } });
+        sources.push(null);
       } else if (last && gap > 0) {
         last.to = { ...start }; // snap a near-miss onto the start point
       }
@@ -161,8 +165,9 @@ export function parseVectors(text: string, start: Point = { x: 0, y: 0 }): Parse
     }
     const to = { x: at.x + dx, y: at.y + dy };
     segments.push(sagitta === 0 ? { kind: "line", from: at, to } : { kind: "arc", from: at, to, sagitta });
+    sources.push(tok);
     at = to;
   }
 
-  return { path: { start: { ...start }, segments }, errors };
+  return { path: { start: { ...start }, segments }, errors, sources };
 }
