@@ -33,18 +33,23 @@ count as area on the floor above, per ANSI Z765.
 
 ```
 npm install
-npm run dev       # open http://localhost:5173
+npm run dev       # opens http://localhost:5179 (fixed port: drafts and My labels are kept per address)
 npm test          # Vitest
 npm run typecheck
 npm run build     # static site in dist/
 ```
+
+Publishing: `.github/workflows/pages.yml` runs the tests on every push to
+`main` and, once the repository is public, builds and publishes the site to
+GitHub Pages (Settings › Pages › Source: GitHub Actions). The site keeps its
+data in each visitor's browser; nothing is sent anywhere.
 
 Layout: `src/geometry/` is pure TypeScript with no DOM (units, vectors, path,
 ansi, model); `src/app/` is the screen (store with undo, SVG renderer, files,
 main); `src/export/` holds the paste-ready text; tests in `test/`.
 
 On the canvas: drag an area to move it (snaps to other areas' corners, or to
-6" grid; hold Alt for free movement), drag empty space to pan, wheel to zoom,
+the grid set in ⚙ Settings; hold Alt for free movement), drag empty space to pan, wheel to zoom,
 F to fit. Click a stair to select it, then drag it or its round handles
 (flight lengths, width); T rotates it. Typing while the drawing has focus goes
 straight into the walls box. A length then an arrow key makes a wall (`30` ↑ →
