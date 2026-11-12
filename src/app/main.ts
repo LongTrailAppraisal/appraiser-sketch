@@ -31,6 +31,9 @@ import {
   applyArrow,
   closeOutline,
   deleteWall,
+  moveCorners,
+  corners as areaCorners,
+  parseVectors,
   type AreaResult,
   type Area,
   type Structure,
@@ -167,7 +170,23 @@ type Drag =
   | { kind: "move"; sel: Selection; start: Point; origin: Point; key: string; carry?: string[] }
   | { kind: "handle"; sel: Selection; handle: StairHandleKey; key: string }
   | { kind: "label"; sel: Selection; start: Point; offset: Point; key: string }
-  | { kind: "text"; id: string; start: Point; at: Point; key: string };
+  | { kind: "text"; id: string; start: Point; at: Point; key: string }
+  | {
+      kind: "corner";
+      sel: Selection;
+      /** Corners being moved (one corner, or both ends of a wall). */
+      corners: number[];
+      /** Corner positions at drag start, by index. */
+      base: Point[];
+      vectors: string;
+      origin: Point;
+      start: Point;
+      startPx: Point;
+      /** Unit normal when sliding a wall; null for a free corner. */
+      normal: Point | null;
+      moved: boolean;
+      key: string;
+    };
 
 let drag: Drag | null = null;
 let dragSeq = 0;
@@ -229,12 +248,36 @@ canvas.addEventListener("pointerdown", (e) => {
     /* synthetic or already-released pointer */
   }
   const cornerEl = el.closest("[data-corner]");
-  if (cornerEl && e.button === 0) {
-    const area = cornerEl.getAttribute("data-area")!;
-    const index = Number(cornerEl.getAttribute("data-corner"));
-    activeCorner = activeCorner?.area === area && activeCorner.index === index ? null : { area, index };
-    drawCanvas();
-    drawVectorBar();
+  const wallEl = cornerEl ? null : el.closest("[data-wall]");
+  if ((cornerEl || wallEl) && e.button === 0) {
+    const t = (cornerEl ?? wallEl)!;
+    const sel: Selection = { structure: t.getAttribute("data-structure")!, area: t.getAttribute("data-area")! };
+    const f = findArea(store.state.sketch, sel);
+    if (!f) return;
+    const base = areaCorners(f.area.vectors, f.area.origin);
+    const segs = parseVectors(f.area.vectors, f.area.origin).path.segments;
+    // areaCorners drops the repeated start on a closed outline; an open one keeps its pen corner.
+    let corners: number[];
+    let normal: Point | null = null;
+    if (cornerEl) {
+      corners = [Number(cornerEl.getAttribute("data-corner"))];
+    } else {
+      const k = Number(wallEl!.getAttribute("data-wall"));
+      const sg = segs[k];
+      if (!sg) return;
+      corners = [k, (k + 1) % Math.max(base.length, 1)];
+      const len = Math.hypot(sg.to.x - sg.from.x, sg.to.y - sg.from.y) || 1;
+      normal = { x: -(sg.to.y - sg.from.y) / len, y: (sg.to.x - sg.from.x) / len };
+    }
+    if (segs.length > 0 && base.length === segs.length + 1) {
+      // Open outline: corner indices run 0..n, no wrap.
+      if (!cornerEl) corners = [corners[0]!, corners[0]! + 1];
+    }
+    dragSeq += 1;
+    drag = {
+      kind: "corner", sel, corners, base, vectors: f.area.vectors, origin: { ...f.area.origin },
+      start: toWorld(view, p), startPx: { x: e.clientX, y: e.clientY }, normal, moved: false, key: `corner:${sel.area}:${dragSeq}`,
+    };
     return;
   }
   const textEl = el.closest("[data-text]");
@@ -314,6 +357,54 @@ canvas.addEventListener("pointermove", (e) => {
         { coalesce: d.key },
       );
     }
+    return;
+  }
+  if (drag.kind === "corner") {
+    const d = drag;
+    if (!d.moved) {
+      if (Math.hypot(e.clientX - d.startPx.x, e.clientY - d.startPx.y) < 3) return;
+      d.moved = true;
+      activeCorner = null;
+    }
+    const inch = (v: number) => Math.round(v * 12) / 12;
+    let delta: Point;
+    if (d.normal) {
+      // Slide the wall square to itself, in whole inches.
+      const along = inch((w.x - d.start.x) * d.normal.x + (w.y - d.start.y) * d.normal.y);
+      delta = { x: d.normal.x * along, y: d.normal.y * along };
+    } else {
+      const from = d.base[d.corners[0]!];
+      if (!from) return;
+      let to = { x: from.x + w.x - d.start.x, y: from.y + w.y - d.start.y };
+      const tolFt = 10 / view.scale;
+      // Snap onto another corner (other areas, or this outline's other corners)…
+      const targets = [...areaVertices(d.sel.area), ...d.base.filter((_, i) => !d.corners.includes(i))];
+      const hit = e.altKey ? undefined : targets.find((q) => Math.hypot(q.x - to.x, q.y - to.y) < tolFt);
+      if (hit) {
+        to = { ...hit };
+      } else {
+        to = e.altKey ? to : { x: inch(to.x), y: inch(to.y) };
+        // …or line up square with the corners either side, so walls stay straight.
+        const nb = [d.base[(d.corners[0]! - 1 + d.base.length) % d.base.length], d.base[(d.corners[0]! + 1) % d.base.length]];
+        for (const q of nb) {
+          if (!q || e.altKey) continue;
+          if (Math.abs(q.x - to.x) < tolFt * 0.8) to.x = q.x;
+          if (Math.abs(q.y - to.y) < tolFt * 0.8) to.y = q.y;
+        }
+      }
+      delta = { x: to.x - from.x, y: to.y - from.y };
+    }
+    const r = moveCorners(d.vectors, d.origin, d.corners, delta);
+    if (!r) return;
+    store.update(
+      (draft) => {
+        const f = findArea(draft, d.sel);
+        if (!f) return;
+        f.area.vectors = r.vectors;
+        f.area.origin = r.origin;
+      },
+      { coalesce: d.key },
+    );
     return;
   }
   if (drag.kind === "text") {
@@ -405,6 +496,17 @@ canvas.addEventListener("pointermove", (e) => {
 });
 
 function endDrag() {
+  // A click on a corner (no drag) picks it for Delete wall.
+  if (drag?.kind === "corner" && !drag.moved && !drag.normal) {
+    const area = drag.sel.area;
+    const index = drag.corners[0]!;
+    store.select(drag.sel);
+    activeCorner = activeCorner?.area === area && activeCorner.index === index ? null : { area, index };
+    drag = null;
+    drawCanvas();
+    drawVectorBar();
+    return;
+  }
   // A click (not a pan) on empty space places the start point of an area that has no walls yet.
   if (drag?.kind === "pan" && !drag.moved) {
     const f = findArea(store.state.sketch, store.state.selection);

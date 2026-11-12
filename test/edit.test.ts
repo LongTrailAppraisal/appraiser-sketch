@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyArrow, area, deleteWall, closeOutline, closure, corners, moveToken, openAtCorner, parseVectors } from "../src/geometry/index.js";
+import { applyArrow, area, deleteWall, moveCorners, closeOutline, closure, corners, moveToken, openAtCorner, parseVectors } from "../src/geometry/index.js";
 
 describe("arrow keys", () => {
   it("turns a trailing length into a wall", () => {
@@ -100,5 +100,40 @@ describe("delete wall", () => {
     expect(closure(p).closed).toBe(true);
     expect(area(p)).toBeCloseTo(720, 9);
     expect(parseVectors("A30:12").errors).toEqual([]); // polar moves still work
+  });
+});
+
+describe("moving corners and walls with the mouse", () => {
+  const o = { x: 0, y: 0 };
+  it("dragging one corner rewrites its two walls", () => {
+    const r = moveCorners("R24 U30 L24 D30", o, [2], { x: 2, y: 0 })!;
+    expect(r.vectors).toBe("R24 U30 L24 D30".replace("U30", "R2'U30'").replace("L24", "L26'"));
+    expect(area(parseVectors(r.vectors, r.origin).path)).toBeCloseTo(720 + 30, 9);
+  });
+
+  it("dragging a wall (both its corners) keeps it parallel", () => {
+    // East wall is wall 1, between corners 1 and 2: push it out 2'.
+    const r = moveCorners("R24 U30 L24 D30", o, [1, 2], { x: 2, y: 0 })!;
+    expect(r.vectors).toBe("R26' U30 L26' D30");
+    expect(area(parseVectors(r.vectors, r.origin).path)).toBeCloseTo(26 * 30, 9);
+  });
+
+  it("moving the start corner moves the origin and the closing wall", () => {
+    const r = moveCorners("R24 U30 L24 D30", o, [0, 1], { x: 0, y: -1 })!;
+    expect(r).toEqual({ vectors: "R24 U31' L24 D31'", origin: { x: 0, y: -1 } });
+    expect(closure(parseVectors(r.vectors, r.origin).path).closed).toBe(true);
+  });
+
+  it("keeps CL and arc depths", () => {
+    const r = moveCorners("R20^3 U10 L20 CL", o, [1, 2], { x: 1, y: 0 })!;
+    expect(r.vectors).toBe("R21'^3 U10 L21' CL");
+    const p = parseVectors(r.vectors, r.origin).path;
+    expect(closure(p).closed).toBe(true);
+    expect(p.segments[0]!.kind).toBe("arc");
+  });
+
+  it("drops a wall dragged to nothing, and moves the pen on an open outline", () => {
+    expect(moveCorners("R10 U5 R10", o, [2, 3], { x: 0, y: -5 })!.vectors).toBe("R10 R10");
+    expect(moveCorners("R10 U5", o, [2], { x: 1, y: 0 })!.vectors).toBe("R10 R1'U5'");
   });
 });

@@ -90,3 +90,57 @@ export function applyArrow(text: string, caret: number, dir: "up" | "down" | "le
   const after = text.slice(caret).replace(/^ /, "");
   return { text: text.slice(0, start) + insert + after, caret: start + insert.length };
 }
+
+/**
+ * Move corners of an outline by (dx, dy) and rewrite the walls to match: the
+ * wall arriving at a moved corner and the wall leaving it change; everything
+ * else keeps its typed text. Moving both ends of one wall slides that wall.
+ * Corner k is the start of wall k (corner 0 is the start point; on an open
+ * outline the last corner is the pen). Arcs keep their depth. A wall that
+ * shrinks to nothing is dropped. Comments are dropped.
+ */
+export function moveCorners(vectors: string, origin: Point, cornerIdx: number[], d: Point): Rewritten | null {
+  const { path, sources } = parseVectors(vectors, origin);
+  const segs = path.segments;
+  const n = segs.length;
+  if (n === 0) return null;
+  const closed = closure(path).closed;
+  const count = closed ? n : n + 1;
+  const moved = new Set(cornerIdx.filter((c) => c >= 0 && c < count));
+  if (moved.size === 0) return null;
+
+  const delta = segs.map((s) => ({ x: s.to.x - s.from.x, y: s.to.y - s.from.y }));
+  const changed = new Set<number>();
+  const bump = (k: number, sign: 1 | -1) => {
+    delta[k]!.x += sign * d.x;
+    delta[k]!.y += sign * d.y;
+    changed.add(k);
+  };
+  for (const c of moved) {
+    const arriving = c > 0 ? c - 1 : closed ? n - 1 : -1;
+    if (arriving >= 0) bump(arriving, 1);
+    if (c < n) bump(c, -1);
+  }
+  // Moving the start point moves the whole outline's anchor.
+  const newOrigin = moved.has(0) ? { x: origin.x + d.x, y: origin.y + d.y } : { ...origin };
+
+  const tokens: string[] = [];
+  segs.forEach((s, k) => {
+    const src = sources[k] ?? null;
+    if (src === null) {
+      // A wall made by CL/A: keep closing (it follows the corners by itself).
+      tokens.push(k === n - 1 ? "CL" : moveToken(delta[k]!.x, delta[k]!.y));
+      return;
+    }
+    const same = Math.abs(delta[k]!.x - (s.to.x - s.from.x)) < 1e-9 && Math.abs(delta[k]!.y - (s.to.y - s.from.y)) < 1e-9;
+    if (!changed.has(k) || same) {
+      tokens.push(src);
+      return;
+    }
+    const t = moveToken(delta[k]!.x, delta[k]!.y);
+    if (t === "") return; // wall shrank to nothing
+    const arc = s.kind === "arc" ? /\^.*$/.exec(src)?.[0] ?? "" : "";
+    tokens.push(t + arc);
+  });
+  return { vectors: tokens.join(" "), origin: newOrigin };
+}

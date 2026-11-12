@@ -230,14 +230,27 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
         const start = toScreen(v, r.shape.path.start);
         parts.push(`<line class="misclosure" x1="${n(end.x)}" y1="${n(end.y)}" x2="${n(start.x)}" y2="${n(start.y)}"/>`);
       }
-      if (areaSelected && interactive && r.shape.closure.closed && pts.length >= 3) {
-        // Clickable corners for "Open here".
-        const cs = [r.shape.path.start, ...r.shape.path.segments.map((sg) => sg.to)].slice(0, r.shape.path.segments.length);
+      if (areaSelected && interactive && r.shape.path.segments.length > 0) {
+        const segs = r.shape.path.segments;
+        const closed = r.shape.closure.closed;
+        // Walls: grab one to slide it in or out, square to itself.
+        segs.forEach((sg, k) => {
+          const a = toScreen(v, sg.from);
+          const b = toScreen(v, sg.to);
+          const horiz = Math.abs(b.y - a.y) < 0.5;
+          const vert = Math.abs(b.x - a.x) < 0.5;
+          const cur = horiz ? "ns-resize" : vert ? "ew-resize" : "move";
+          handles.push(
+            `<line class="wall-hit" ${data} data-wall="${k}" x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}" style="cursor:${cur}"><title>Drag to move this wall</title></line>`,
+          );
+        });
+        // Corners: drag to move; click to pick one for Delete wall.
+        const cs = [r.shape.path.start, ...segs.map((sg) => sg.to)].slice(0, closed ? segs.length : segs.length + 1);
         cs.forEach((c, i) => {
           const p = toScreen(v, c);
           const on = opts.activeCorner === i;
           handles.push(
-            `<circle class="corner${on ? " active" : ""}" ${data} data-corner="${i}" cx="${n(p.x)}" cy="${n(p.y)}" r="${on ? 7 : 5}"><title>Corner ${i + 1}: click to open the outline here</title></circle>`,
+            `<circle class="corner${on ? " active" : ""}" ${data} data-corner="${i}" cx="${n(p.x)}" cy="${n(p.y)}" r="${on ? 7 : 5}"><title>Corner ${i + 1}: drag to move it; click to pick it for Delete wall</title></circle>`,
           );
         });
       }
