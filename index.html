@@ -120,6 +120,11 @@
               <select id="p-override-bucket"></select>
               <label>Reason (required) <textarea id="p-override-note" rows="2"></textarea></label>
             </details>
+            <div class="row-buttons add-row">
+              <span class="muted">Add:</span>
+              <button id="btn-add-stair" title="Add a stair to this area">+ Stair</button>
+              <button id="btn-show-zones" title="Mark low ceilings or space open to below">+ Ceiling / opening</button>
+            </div>
             <div class="row-buttons">
               <button id="btn-delete-area" class="danger">Delete area</button>
             </div>
@@ -127,7 +132,10 @@
         </section>
 
         <section class="panel" id="zones-panel">
-          <h2>Ceilings &amp; openings</h2>
+          <div class="panel-head">
+            <h2>Ceilings &amp; openings</h2>
+            <button id="btn-hide-zones" class="link" title="Close this panel (only while no zones are added)">Cancel</button>
+          </div>
           <div id="zone-list" class="chips"></div>
           <div class="form">
             <div id="zone-form" class="form">
@@ -165,7 +173,7 @@
         <section class="panel" id="stairs-panel">
           <div class="panel-head">
             <h2>Stairs</h2>
-            <button id="btn-add-stair" title="Add a stair to the selected area">+ Stair</button>
+            <button id="btn-add-stair-2" title="Add another stair to this area">+ Stair</button>
           </div>
           <div id="stair-list" class="chips"></div>
           <div class="form" id="stair-form">

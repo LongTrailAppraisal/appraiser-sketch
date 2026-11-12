@@ -126,6 +126,14 @@ button.link:disabled { color: var(--muted); }
 .totals { border-right: 0; border-left: 1px solid var(--line); }
 
 .panel { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.panel h2 { cursor: pointer; user-select: none; }
+.panel h2::before { content: "▾"; display: inline-block; width: 1em; transition: transform 0.12s; }
+.panel.collapsed h2::before { transform: rotate(-90deg); }
+.panel.collapsed > :not(h2):not(.panel-head) { display: none; }
+.panel.collapsed h2 { margin-bottom: 0; }
+.add-row { align-items: center; }
+button.hidden { display: none; }
+.add-row .muted { color: var(--muted); font-size: 12px; }
 .panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 8px; }
 .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .row-buttons { display: flex; gap: 4px; flex-wrap: wrap; }

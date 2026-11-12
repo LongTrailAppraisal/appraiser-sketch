@@ -612,7 +612,8 @@ function selectedStair(): Stair | null {
 function drawStairs() {
   const sel = store.state.selection;
   const f = findArea(store.state.sketch, sel);
-  stairs.panel.classList.toggle("disabled", !f);
+  // Only shown when the selected area has stairs; "+ Stair" in the Area panel adds one.
+  stairs.panel.classList.toggle("hidden", !f || (f.area.stairs ?? []).length === 0);
   const list = f?.area.stairs ?? [];
   stairs.list.innerHTML = list.length
     ? list
@@ -654,7 +655,10 @@ stairs.list.addEventListener("click", (e) => {
   if (b && sel) store.select({ structure: sel.structure, area: sel.area, stair: b.getAttribute("data-stair")! });
 });
 
+$("btn-add-stair-2").addEventListener("click", () => $("btn-add-stair").click());
+
 $("btn-add-stair").addEventListener("click", () => {
+  setCollapsed(stairs.panel, false);
   const sel = store.state.selection;
   const ar = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === sel?.area);
   if (!sel || !ar) return;
@@ -713,6 +717,40 @@ lengthField(stairs.run2, (st, v) => (st.run2 = v), "st-run2");
 lengthField(stairs.x, (st, v) => (st.origin = { ...st.origin, x: v }), "st-x", true);
 lengthField(stairs.y, (st, v) => (st.origin = { ...st.origin, y: v }), "st-y", true);
 
+// ---------- collapsible panels (remembered in this browser) ----------
+
+const COLLAPSED_KEY = "sketch:collapsed";
+let collapsed = new Set<string>();
+try {
+  collapsed = new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]") as string[]);
+} catch {
+  /* storage unavailable or bad */
+}
+
+function panelKey(panel: Element): string {
+  return panel.id || (panel.querySelector("h2")?.textContent ?? "").trim().toLowerCase();
+}
+
+function setCollapsed(panel: Element, on: boolean) {
+  panel.classList.toggle("collapsed", on);
+  const key = panelKey(panel);
+  if (on) collapsed.add(key);
+  else collapsed.delete(key);
+  try {
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed]));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+for (const panel of document.querySelectorAll(".panel")) {
+  const h2 = panel.querySelector("h2");
+  if (!h2) continue;
+  h2.title = "Click to collapse or expand";
+  if (collapsed.has(panelKey(panel))) panel.classList.add("collapsed");
+  h2.addEventListener("click", () => setCollapsed(panel, !panel.classList.contains("collapsed")));
+}
+
 // ---------- ceiling zones and openings ----------
 
 const zones = {
@@ -730,10 +768,31 @@ const bandOptions = ZONE_BANDS.map((b) => `<option value="${b.value}">${esc(b.la
 zones.band.innerHTML = bandOptions;
 zones.bandNew.innerHTML = bandOptions;
 
+/** Area whose (empty) zones panel was opened with "+ Ceiling / opening". */
+let zonesOpenFor: string | null = null;
+
+$("btn-show-zones").addEventListener("click", () => {
+  const f = findArea(store.state.sketch, store.state.selection);
+  if (!f) return;
+  zonesOpenFor = f.area.id;
+  setCollapsed(zones.panel, false);
+  drawZones();
+  zones.panel.scrollIntoView({ block: "nearest" });
+});
+$("btn-hide-zones").addEventListener("click", () => {
+  zonesOpenFor = null;
+  drawZones();
+});
+
 function drawZones() {
   const sel = store.state.selection;
   const f = findArea(store.state.sketch, sel);
-  zones.panel.classList.toggle("hidden", !f || f.area.kind !== "living");
+  // Only shown when the selected area has zones, or "+ Ceiling / opening" was just pressed.
+  if (zonesOpenFor && zonesOpenFor !== f?.area.id) zonesOpenFor = null;
+  const show = !!f && f.area.kind === "living" && (f.area.zones.length > 0 || zonesOpenFor === f.area.id);
+  zones.panel.classList.toggle("hidden", !show);
+  $("btn-hide-zones").classList.toggle("hidden", !f || f.area.zones.length > 0);
+  $("btn-show-zones").classList.toggle("hidden", !f || f.area.kind !== "living" || show);
   if (!f) return;
   const list = f.area.zones;
   zones.list.innerHTML = list.length
@@ -775,6 +834,7 @@ zones.name.addEventListener("input", () =>
 zones.band.addEventListener("change", () => editZone((z) => (z.band = zones.band.value as ZoneBand)));
 
 function addZone(z: Omit<Area["zones"][number], "id">) {
+  setCollapsed(zones.panel, false);
   const sel = store.state.selection;
   if (!sel) return;
   const id = newId("z");
