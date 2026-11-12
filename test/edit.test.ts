@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyArrow, area, closeOutline, closure, corners, moveToken, openAtCorner, parseVectors } from "../src/geometry/index.js";
+import { applyArrow, area, deleteWall, closeOutline, closure, corners, moveToken, openAtCorner, parseVectors } from "../src/geometry/index.js";
 
 describe("arrow keys", () => {
   it("turns a trailing length into a wall", () => {
@@ -69,5 +69,36 @@ describe("open and close at a corner", () => {
     expect(closeOutline("R24 U30 L24 ")).toBe("R24 U30 L24 CL");
     expect(moveToken(-24, 0)).toBe("L24'");
     expect(moveToken(10, 5.5)).toBe("R10'U5'6\"");
+  });
+});
+
+describe("delete wall", () => {
+  const o = { x: 0, y: 0 };
+  it("steps back one wall at a time on an open outline", () => {
+    let r = deleteWall("R24 U30 L24", o, null)!;
+    expect(r).toEqual({ vectors: "R24 U30", origin: o });
+    r = deleteWall(r.vectors, r.origin, null)!;
+    expect(r.vectors).toBe("R24");
+    r = deleteWall(r.vectors, r.origin, null)!;
+    expect(r.vectors).toBe("");
+    expect(deleteWall("", o, null)).toBeNull();
+  });
+
+  it("opens a closed outline at the picked corner, then keeps stepping back", () => {
+    const r = deleteWall("R24 U30 L24 D30", o, 1)!;
+    expect(r).toEqual({ vectors: "L24 D30 R24", origin: { x: 24, y: 30 } });
+    expect(deleteWall(r.vectors, r.origin, null)!.vectors).toBe("L24 D30");
+  });
+
+  it("with no corner picked, removes the closing wall", () => {
+    expect(deleteWall("R24 U30 L24 D30", o, null)!.vectors).toBe("R24 U30 L24");
+    expect(deleteWall("R24 U30 L24 CL", o, null)!.vectors).toBe("R24 U30 L24");
+  });
+
+  it("A closes like CL", () => {
+    const p = parseVectors("R24 U30 L24 A").path;
+    expect(closure(p).closed).toBe(true);
+    expect(area(p)).toBeCloseTo(720, 9);
+    expect(parseVectors("A30:12").errors).toEqual([]); // polar moves still work
   });
 });

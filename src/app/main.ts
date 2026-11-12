@@ -28,7 +28,7 @@ import {
   stripZone,
   applyArrow,
   closeOutline,
-  openAtCorner,
+  deleteWall,
   type AreaResult,
   type Area,
   type Side,
@@ -837,9 +837,22 @@ function arrowIntoWalls(key: string, atEnd: boolean): boolean {
   return true;
 }
 
+/** "L24" then a → "L24 A": A closes the outline even typed straight after a wall. */
+function closeKeyIntoWalls(atEnd: boolean): boolean {
+  if (vectors.disabled) return false;
+  const caret = atEnd ? vectors.value.length : (vectors.selectionStart ?? vectors.value.length);
+  if (!atEnd && vectors.selectionStart !== vectors.selectionEnd) return false;
+  const before = vectors.value.slice(0, caret);
+  if (before === "" || /[\s,]$/.test(before)) return false; // a token start: A may begin a polar move (A30:12)
+  vectors.setRangeText(" A", caret, caret, "end");
+  vectors.dispatchEvent(new Event("input"));
+  return true;
+}
+
 vectors.addEventListener("keydown", (e) => {
-  if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
-  if (arrowIntoWalls(e.key, false)) e.preventDefault();
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!e.shiftKey && arrowIntoWalls(e.key, false)) e.preventDefault();
+  else if (e.key.toLowerCase() === "a" && closeKeyIntoWalls(false)) e.preventDefault();
 });
 
 const vectorLabel = document.querySelector<HTMLLabelElement>(".vector-label")!;
@@ -903,11 +916,13 @@ function drawVectorBar() {
   const actions: string[] = [];
   const cornerHere = activeCorner?.area === r.area.id ? activeCorner.index : null;
   if (sh.closure.closed && cornerHere !== null) {
-    actions.push(`Corner ${cornerHere + 1}: <button class="inline" data-action="open">Open here</button> (removes the wall leaving this corner so you can redraw from it)`);
+    actions.push(`Corner ${cornerHere + 1}: <button class="inline" data-action="delete">Delete wall</button> leaving this corner (opens the outline here; press again to keep going back)`);
   } else if (sh.closure.closed) {
-    actions.push(`<span class="hint">Click a corner to open the outline there for editing.</span>`);
-  } else {
-    actions.push(`<button class="inline" data-action="close">Close</button> with a straight wall, or keep typing back to the start.`);
+    actions.push(`<span class="hint">Click a corner to delete the wall leaving it, or Backspace on the drawing removes the last wall.</span>`);
+  } else if (sh.path.segments.length > 0) {
+    actions.push(
+      `<button class="inline" data-action="delete">Delete last wall</button> <button class="inline" data-action="close">Close (A)</button> <span class="hint">or keep typing back to the start.</span>`,
+    );
   }
   const problems = r.problems.filter((p) => !p.startsWith("outline does not close"));
   vstatus.innerHTML =
@@ -917,24 +932,34 @@ function drawVectorBar() {
     (problems.length ? `<ul>${problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "");
 }
 
+/** Delete the wall leaving the picked corner (closed outline) or the last wall, stepping the pen back. */
+function deleteWallAction(): boolean {
+  const f = findArea(store.state.sketch, store.state.selection);
+  if (!f || store.state.selection?.zone || store.state.selection?.stair) return false;
+  const corner = activeCorner?.area === f.area.id ? activeCorner.index : null;
+  const r = deleteWall(f.area.vectors, f.area.origin, corner);
+  if (!r) return false;
+  const wasClosed = corner !== null;
+  activeCorner = null;
+  editArea((a) => {
+    a.vectors = r.vectors;
+    a.origin = r.origin;
+  });
+  external = true;
+  drawVectorBar();
+  external = false;
+  if (wasClosed) say("Wall deleted: type walls from the corner, back to the start (or A) to close");
+  return true;
+}
+
 vstatus.addEventListener("click", (e) => {
   const action = (e.target as Element).closest("[data-action]")?.getAttribute("data-action");
   const f = findArea(store.state.sketch, store.state.selection);
   if (!action || !f) return;
-  if (action === "open" && activeCorner?.area === f.area.id) {
-    const r = openAtCorner(f.area.vectors, f.area.origin, activeCorner.index);
-    if (!r) return;
-    activeCorner = null;
-    editArea((a) => {
-      a.vectors = r.vectors;
-      a.origin = r.origin;
-    });
-    external = true;
-    drawVectorBar();
-    external = false;
+  if (action === "delete") {
+    deleteWallAction();
     vectors.focus();
     vectors.setSelectionRange(vectors.value.length, vectors.value.length);
-    say("Opened: type walls from the corner, back to the start to close");
   } else if (action === "close") {
     editArea((a) => (a.vectors = closeOutline(a.vectors)));
     vectors.focus();
@@ -1303,6 +1328,12 @@ document.addEventListener("keydown", (e) => {
       e.preventDefault();
       vectors.focus();
     }
+  } else if (!mod && !e.altKey && document.activeElement === canvas && e.key === "Backspace") {
+    e.preventDefault();
+    deleteWallAction();
+  } else if (!mod && !e.altKey && document.activeElement === canvas && k === "a" && closeKeyIntoWalls(true)) {
+    e.preventDefault();
+    vectors.focus();
   } else if (!mod && !e.altKey && e.key.length === 1 && document.activeElement === canvas && k !== "f") {
     // Typing on the drawing goes into the walls box, as in other sketch programs.
     e.preventDefault();

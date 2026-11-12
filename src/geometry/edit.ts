@@ -46,6 +46,27 @@ export function openAtCorner(vectors: string, origin: Point, i: number): Rewritt
   return { vectors: order.join(" "), origin: { ...path.segments[i]!.to } };
 }
 
+/**
+ * Delete a wall, stepping the pen back. On an open outline the last wall goes
+ * and the pen moves back to the corner before it (press again to keep going
+ * back). On a closed outline, `corner` picks where to open it: the wall
+ * leaving that corner goes and the pen sits on the corner. A closing CL/A is
+ * removed first, leaving the outline open where it ended.
+ */
+export function deleteWall(vectors: string, origin: Point, corner: number | null): Rewritten | null {
+  const { path, sources } = parseVectors(vectors, origin);
+  const n = path.segments.length;
+  if (n === 0) return null;
+  if (closure(path).closed && n >= 3) {
+    if (corner !== null) return openAtCorner(vectors, origin, corner);
+    // No corner picked: open at the end (remove the closing wall).
+    return openAtCorner(vectors, origin, n - 1);
+  }
+  const tokens = path.segments.map((s, k) => sources[k] ?? moveToken(s.to.x - s.from.x, s.to.y - s.from.y));
+  tokens.pop();
+  return { vectors: tokens.join(" "), origin: { ...path.start } };
+}
+
 /** Close an open outline with a straight wall back to the start. */
 export function closeOutline(vectors: string): string {
   const t = vectors.replace(/\s+$/, "");

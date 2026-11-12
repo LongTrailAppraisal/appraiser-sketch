@@ -6,7 +6,7 @@
  *   R10U5                       one diagonal wall, run 10 rise 5
  *   A30:12                      12' at 30° counter-clockwise from east
  *   R20^3                       arc bulging 3' outward (^-3 inward)
- *   CL                          close to the start point
+ *   CL (or A)                   close to the start point
  */
 
 import { parseLength } from "./units.js";
@@ -70,7 +70,7 @@ function parseSagitta(raw: string | undefined): number | string {
 
 function parseToken(tok: string): TokenResult {
   const t = tok.toUpperCase();
-  if (t === "CL" || t === "CLOSE") return { close: true };
+  if (t === "CL" || t === "CLOSE" || t === "A") return { close: true };
 
   let m = RE_DIAG.exec(t);
   if (m) {
