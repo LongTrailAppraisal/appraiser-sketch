@@ -143,6 +143,10 @@
               <button id="btn-show-zones" title="Mark low ceilings or space open to below">+ Ceiling / opening</button>
             </div>
             <div class="row-buttons">
+              <details id="copy-area" class="add-menu">
+                <summary title="Copy this area's outline (with its stairs and ceiling zones) as a new area">Copy as ▾</summary>
+                <div class="add-menu-body" id="copy-area-list"></div>
+              </details>
               <button id="btn-delete-area" class="danger">Delete area</button>
             </div>
           </div>
@@ -230,6 +234,10 @@
             </div>
             <div class="row-buttons">
               <button id="btn-rotate-stair" title="Rotate 90° (T)">Rotate 90°</button>
+              <details id="copy-stair" class="add-menu">
+                <summary title="Copy this stair, as set up, to this or another floor">Copy to ▾</summary>
+                <div class="add-menu-body" id="copy-stair-list"></div>
+              </details>
               <button id="btn-delete-stair" class="danger">Delete stair</button>
             </div>
             <div class="note-small">Drag a stair to move it; drag its round handles to change the flights and width. Stairs count on the floor above (ANSI Z765), so they don't change this area.</div>

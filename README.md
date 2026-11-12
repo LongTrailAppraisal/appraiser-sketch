@@ -56,7 +56,12 @@ in this browser; export or import the list from the ⚙ settings menu, which als
 holds the theme), and it is placed in the selected area; drag it into place,
 edit it, or press Delete to remove it. **+ Area** offers presets: next living floor, basement (below grade,
 unfinished, starting from the first-floor outline), finished basement,
-finished attic, garage, carport, porch, deck, patio, breezeway. Moving an
+finished attic, garage, carport, porch, deck, patio, breezeway. **Copy as** on the Area panel copies
+the outline (with its stairs and ceiling zones) as a new area, either exactly or
+as one of the presets (basement, next floor, garage…). **Copy to** on the Stairs
+panel copies a set-up stair to another floor at the same place relative to
+that floor's start point, with the arrow pointing down from above or up from
+below, or beside itself on the same floor. Moving an
 area moves its stairs, ceiling zones and the labels inside it. The sidebar shows Stairs and Ceilings & openings only for areas that have
 them (add them from the Area panel), and every panel collapses by clicking
 its heading; the browser remembers which are collapsed. **Auto fit** (toolbar) keeps the whole sketch centred and in view as you draw;

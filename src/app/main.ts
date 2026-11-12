@@ -35,6 +35,8 @@ import {
   type Area,
   type Structure,
   containsPoint,
+  copyArea,
+  copyStairTo,
   type Side,
   type ZoneBand,
 } from "../geometry/index.js";
@@ -1572,19 +1574,107 @@ $("add-area-list").addEventListener("click", (e) => {
   vectors.setSelectionRange(vectors.value.length, vectors.value.length);
 });
 
-// The sidebar scrolls (and clips), so place the menu on the page under its button.
-$<HTMLDetailsElement>("add-area").addEventListener("toggle", () => {
-  const m = $<HTMLDetailsElement>("add-area");
-  if (!m.open) return;
-  const r = m.querySelector("summary")!.getBoundingClientRect();
-  const body = $("add-area-list");
-  body.style.left = `${Math.round(r.left)}px`;
-  body.style.top = `${Math.round(r.bottom + 4)}px`;
+/**
+ * A drop-down menu made from <details>. The sidebar scrolls (and clips), so
+ * the menu is placed on the page under its button; it closes on an outside
+ * click. `fill` runs as it opens, to build items that depend on the sketch.
+ */
+function dropMenu(detailsId: string, bodyId: string, fill?: () => void) {
+  const m = $<HTMLDetailsElement>(detailsId);
+  m.addEventListener("toggle", () => {
+    if (!m.open) return;
+    fill?.();
+    const r = m.querySelector("summary")!.getBoundingClientRect();
+    const body = $(bodyId);
+    const w = Math.max(body.offsetWidth, 220);
+    body.style.left = `${Math.round(Math.min(r.left, window.innerWidth - w - 8))}px`;
+    body.style.top = `${Math.round(r.bottom + 4)}px`;
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (m.open && !m.contains(e.target as Node)) m.open = false;
+  });
+}
+dropMenu("add-area", "add-area-list");
+
+// ---------- copy an area ----------
+
+dropMenu("copy-area", "copy-area-list", () => {
+  $("copy-area-list").innerHTML =
+    `<button data-copy="exact">Exact copy<small>same settings; rename it after</small></button><hr />` +
+    AREA_PRESETS.map((p) =>
+      p === "sep" ? "<hr />" : `<button data-copy="${p.id}">As ${esc(p.label.replace(/ \(.*\)$/, "").toLowerCase())}</button>`,
+    ).join("");
 });
 
-document.addEventListener("pointerdown", (e) => {
-  const m = $<HTMLDetailsElement>("add-area");
-  if (m.open && !m.contains(e.target as Node)) m.open = false;
+$("copy-area-list").addEventListener("click", (e) => {
+  const id = (e.target as Element).closest("[data-copy]")?.getAttribute("data-copy");
+  const sel = store.state.selection;
+  const f = findArea(store.state.sketch, sel);
+  if (!id || !sel || !f) return;
+  $<HTMLDetailsElement>("copy-area").open = false;
+  const preset = AREA_PRESETS.find((p): p is AreaPreset => p !== "sep" && p.id === id);
+  const origin = nextFreeOrigin();
+  store.update((draft) => {
+    const found = findArea(draft, sel);
+    if (!found) return null;
+    // A preset sets the type, level and name; the copied outline is kept.
+    const over: Partial<Area> = preset ? preset.make(found.structure) : {};
+    delete over.vectors;
+    const a = copyArea(found.area, origin, newId, over);
+    found.structure.areas.push(a);
+    return { structure: found.structure.id, area: a.id };
+  });
+  setCollapsed(props.panel, false);
+  props.name.focus();
+  props.name.select();
+  say("Copied: set its name, type and level, then edit the walls if they differ");
+});
+
+// ---------- copy a stair ----------
+
+dropMenu("copy-stair", "copy-stair-list", () => {
+  const sel = store.state.selection;
+  const items: string[] = [`<button data-stair-to="">This area<small>a second stair beside it</small></button>`];
+  for (const s of store.state.sketch.structures) {
+    for (const a of s.areas) {
+      if (a.id === sel?.area || a.kind !== "living") continue;
+      items.push(`<button data-stair-to="${esc(a.id)}">${esc(a.name)}<small>${esc(s.name)} · ${esc(levelName(a.level))}</small></button>`);
+    }
+  }
+  if (items.length === 1) items.push(`<small class="muted" style="padding:4px 8px">Add another floor to copy the stair there</small>`);
+  $("copy-stair-list").innerHTML = items.join("");
+});
+
+$("copy-stair-list").addEventListener("click", (e) => {
+  const b = (e.target as Element).closest("[data-stair-to]");
+  const sel = store.state.selection;
+  if (!b || !sel?.stair) return;
+  $<HTMLDetailsElement>("copy-stair").open = false;
+  const toId = b.getAttribute("data-stair-to") || sel.area;
+  let target: Selection | null = null;
+  store.update((draft) => {
+    const from = findArea(draft, sel);
+    const st = from && (from.area.stairs ?? []).find((x) => x.id === sel.stair);
+    const to = draft.structures.flatMap((s) => s.areas.map((a) => ({ s, a }))).find((x) => x.a.id === toId);
+    if (!from || !st || !to) return null;
+    const copy = copyStairTo(st, from.area, to.a, newId("st"));
+    if (to.a.id === from.area.id) {
+      // Beside the original, along its width.
+      const rad = (st.rotation * Math.PI) / 180;
+      // Step across by the stair's whole footprint (an L or U is wider than one flight).
+      const along = stairDrawing(st).parts.flat().map((q) => (q.x - st.origin.x) * Math.cos(rad) + (q.y - st.origin.y) * Math.sin(rad));
+      const gap = Math.max(...along) - Math.min(0, ...along) + 1;
+      copy.origin = { x: st.origin.x + gap * Math.cos(rad), y: st.origin.y + gap * Math.sin(rad) };
+    }
+    (to.a.stairs ??= []).push(copy);
+    target = { structure: to.s.id, area: to.a.id, stair: copy.id };
+    return target;
+  });
+  const t = target as Selection | null;
+  if (t) {
+    const name = findArea(store.state.sketch, t)?.area.name ?? "";
+    say(t.area === sel.area ? "Stair copied" : `Stair copied to ${name} — drag it if the floors aren't drawn from the same corner`);
+  }
 });
 
 $("btn-add-structure").addEventListener("click", () => {
