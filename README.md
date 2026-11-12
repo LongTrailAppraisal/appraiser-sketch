@@ -52,7 +52,8 @@ straight into the walls box. A length then an arrow key makes a wall (`30` ↑ �
 Backspace on the drawing, or Delete last wall, steps back one wall at a time.
 **Labels** (right side): click a name from Rooms, Garages & outbuildings or
 Decks, porches & patios, or type a custom one (and save it to My labels, kept
-in this browser), and it is placed in the selected area; drag it into place,
+in this browser; export or import the list from the ⚙ settings menu, which also
+holds the theme), and it is placed in the selected area; drag it into place,
 edit it, or press Delete to remove it. The sidebar shows Stairs and Ceilings & openings only for areas that have
 them (add them from the Area panel), and every panel collapses by clicking
 its heading; the browser remembers which are collapsed. **Auto fit** (toolbar) keeps the whole sketch centred and in view as you draw;

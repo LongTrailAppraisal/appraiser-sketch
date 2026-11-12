@@ -42,13 +42,27 @@
       </div>
       <label class="toggle" title="Apply ANSI Z765 rules"><input type="checkbox" id="ansi-mode" checked /> ANSI Z765</label>
       <span id="file-status" class="file-status"></span>
-      <label class="toggle theme" title="Color theme">Theme
-        <select id="theme">
-          <option value="auto">Auto</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
-      </label>
+      <details id="settings" class="settings">
+        <summary title="Settings" aria-label="Settings">⚙</summary>
+        <div class="settings-body">
+          <label>Theme
+            <select id="theme">
+              <option value="auto">Auto (follow the system)</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+          <div class="settings-group">
+            <div class="settings-title">My labels <span id="my-label-count" class="muted"></span></div>
+            <div class="row-buttons">
+              <button id="btn-export-labels" title="Save My labels to a file, to back up or share">Export…</button>
+              <button id="btn-import-labels" title="Add labels from a file (exported here, or a text file with one name per line)">Import…</button>
+            </div>
+            <input id="import-labels-file" type="file" accept=".json,.txt,application/json,text/plain" hidden />
+            <div class="note-small">Share the file with other appraisers or another computer; importing adds to your list.</div>
+          </div>
+        </div>
+      </details>
     </header>
 
     <main class="layout">

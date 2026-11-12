@@ -26,6 +26,7 @@ import {
   checkTemplate,
   ZONE_BANDS,
   LABEL_GROUPS,
+  COMMON_LABELS,
   stripZone,
   applyArrow,
   closeOutline,
@@ -38,6 +39,7 @@ import {
 import { levelName, totalsText } from "../export/text.js";
 import { printPageHtml, sketchPng } from "../export/print.js";
 import { FileManager, SketchFileError, download, loadDraft, saveDraft } from "./files.js";
+import { exportLabels, mergeLabels, parseLabelsFile } from "./labels.js";
 import { centroid, renderSketch, toWorld, type View } from "./render.js";
 import { Store, findArea, newArea, newId, newSketch, newStructure, type Selection } from "./store.js";
 
@@ -1221,6 +1223,7 @@ function drawLabelGroups() {
         `<div class="chips">${g.labels.map((t) => chip(t, g.mine)).join("")}</div></details>`,
     )
     .join("");
+  updateLabelCount();
 }
 drawLabelGroups();
 
@@ -1240,6 +1243,10 @@ labelGroups.addEventListener(
 function keepLabel(text: string) {
   const name = text.trim();
   if (!name) return;
+  if (COMMON_LABELS.some((t) => t.toLowerCase() === name.toLowerCase())) {
+    say(`"${name}" is already a common label`);
+    return;
+  }
   if (myLabels.some((t) => t.toLowerCase() === name.toLowerCase())) {
     say(`"${name}" is already in My labels`);
     return;
@@ -1250,6 +1257,40 @@ function keepLabel(text: string) {
   drawLabelGroups();
   say(`Saved "${name}" to My labels`);
 }
+
+function updateLabelCount() {
+  $("my-label-count").textContent = myLabels.length ? `(${myLabels.length})` : "(none yet)";
+  ($("btn-export-labels") as HTMLButtonElement).disabled = myLabels.length === 0;
+}
+
+$("btn-export-labels").addEventListener("click", () => {
+  download(exportLabels(myLabels), "my-labels.json");
+  say(`Exported ${myLabels.length} label${myLabels.length === 1 ? "" : "s"}`);
+});
+const importLabelsFile = $<HTMLInputElement>("import-labels-file");
+$("btn-import-labels").addEventListener("click", () => importLabelsFile.click());
+importLabelsFile.addEventListener("change", async () => {
+  const file = importLabelsFile.files?.[0];
+  importLabelsFile.value = "";
+  if (!file) return;
+  try {
+    const builtIn = new Set(COMMON_LABELS.map((x) => x.toLowerCase()));
+    const r = mergeLabels(myLabels, parseLabelsFile(await file.text()).filter((n) => !builtIn.has(n.toLowerCase())));
+    myLabels = r.labels;
+    saveList(MY_LABELS_KEY, myLabels);
+    openGroups.add("My labels");
+    drawLabelGroups();
+    say(r.added ? `Added ${r.added} label${r.added === 1 ? "" : "s"} to My labels` : "No new labels in that file");
+  } catch (err) {
+    say(err instanceof Error ? err.message : "Couldn't read that file");
+  }
+});
+
+// Close the settings menu when clicking elsewhere.
+document.addEventListener("pointerdown", (e) => {
+  const st = $<HTMLDetailsElement>("settings");
+  if (st.open && !st.contains(e.target as Node)) st.open = false;
+});
 
 function forgetLabel(name: string) {
   myLabels = myLabels.filter((t) => t !== name);
