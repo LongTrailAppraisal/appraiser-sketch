@@ -39,6 +39,8 @@ import {
   type Structure,
   containsPoint,
   copyArea,
+  defaultStructureName,
+  isDefaultStructureName,
   copyStairTo,
   type Side,
   type ZoneBand,
@@ -735,7 +737,16 @@ function editStructure(fn: (s: ReturnType<typeof newStructure>) => void, coalesc
   );
 }
 sprops.name.addEventListener("input", () => editStructure((s) => (s.name = sprops.name.value), "sname"));
-sprops.kind.addEventListener("change", () => editStructure((s) => (s.kind = sprops.kind.value as StructureKind)));
+sprops.kind.addEventListener("change", () =>
+  editStructure((s) => {
+    s.kind = sprops.kind.value as StructureKind;
+    // The name follows the type until it has been typed over.
+    if (isDefaultStructureName(s.name)) {
+      const others = store.state.sketch.structures.filter((x) => x.id !== s.id).map((x) => x.name);
+      s.name = defaultStructureName(s.kind, others);
+    }
+  }),
+);
 
 // ---------- stairs ----------
 
@@ -1789,12 +1800,14 @@ $("btn-add-structure").addEventListener("click", () => {
   const origin = nextFreeOrigin();
   store.update((draft) => {
     const a = newArea({ name: "First floor", origin });
-    const s = newStructure({ name: `Structure ${draft.structures.length + 1}`, kind: "outbuilding", areas: [a] });
+    const name = defaultStructureName("outbuilding", draft.structures.map((x) => x.name));
+    const s = newStructure({ name, kind: "outbuilding", areas: [a] });
     draft.structures.push(s);
     return { structure: s.id, area: a.id };
   });
-  sprops.name.focus();
-  sprops.name.select();
+  // Pick the type first; the name follows it until you type your own.
+  setCollapsed(sprops.panel, false);
+  sprops.kind.focus();
 });
 
 $("btn-delete-area").addEventListener("click", () => {

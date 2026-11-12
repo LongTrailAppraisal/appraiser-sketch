@@ -213,3 +213,16 @@ describe("model", () => {
     expect(r.structures[0]!.overrides).toEqual([{ area: "Attic", note: "no permanent stair" }]);
   });
 });
+
+describe("structure names follow the type", async () => {
+  const { defaultStructureName, isDefaultStructureName } = await import("../src/geometry/index.js");
+  it("names from the type, numbered when taken", () => {
+    expect(defaultStructureName("barn", [])).toBe("Barn");
+    expect(defaultStructureName("barn", ["Dwelling", "Barn"])).toBe("Barn 2");
+    expect(defaultStructureName("garage", ["Detached garage", "Detached garage 2"])).toBe("Detached garage 3");
+  });
+  it("knows automatic names from typed ones", () => {
+    for (const n of ["Dwelling", "Barn 2", "Main house", "Structure 3", ""]) expect(isDefaultStructureName(n)).toBe(true);
+    for (const n of ["Smith barn", "Guest house", "Barn loft"]) expect(isDefaultStructureName(n)).toBe(false);
+  });
+});

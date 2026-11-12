@@ -50,7 +50,7 @@ export function newArea(over: Partial<Area> = {}): Area {
 }
 
 export function newStructure(over: Partial<Structure> = {}): Structure {
-  return { id: newId("s"), name: "Main house", kind: "dwelling", areas: [], ...over };
+  return { id: newId("s"), name: "Dwelling", kind: "dwelling", areas: [], ...over };
 }
 
 export function newSketch(): Sketch {

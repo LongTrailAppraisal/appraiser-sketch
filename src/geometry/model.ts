@@ -64,7 +64,35 @@ export interface Area {
   hideDims?: boolean;
 }
 
-export type StructureKind = "dwelling" | "adu" | "garage" | "outbuilding";
+export type StructureKind = "dwelling" | "adu" | "garage" | "barn" | "shed" | "outbuilding";
+
+export const STRUCTURE_KINDS: { value: StructureKind; label: string }[] = [
+  { value: "dwelling", label: "Dwelling" },
+  { value: "adu", label: "ADU" },
+  { value: "garage", label: "Detached garage" },
+  { value: "barn", label: "Barn" },
+  { value: "shed", label: "Shed" },
+  { value: "outbuilding", label: "Outbuilding" },
+];
+
+export function structureKindLabel(kind: StructureKind): string {
+  return STRUCTURE_KINDS.find((k) => k.value === kind)?.label ?? "Structure";
+}
+
+/** Whether a structure name is still an automatic one ("Dwelling", "Barn 2", or the old defaults), not typed by the user. */
+export function isDefaultStructureName(name: string): boolean {
+  const base = name.trim().replace(/\s+\d+$/, "");
+  return base === "" || base === "Main house" || base === "Structure" || STRUCTURE_KINDS.some((k) => k.label === base);
+}
+
+/** A name from the type, numbered if another structure already has it: "Barn", "Barn 2". */
+export function defaultStructureName(kind: StructureKind, others: string[]): string {
+  const base = structureKindLabel(kind);
+  if (!others.includes(base)) return base;
+  let i = 2;
+  while (others.includes(`${base} ${i}`)) i++;
+  return `${base} ${i}`;
+}
 
 export interface Structure {
   id: string;

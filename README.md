@@ -65,7 +65,9 @@ the outline (with its stairs and ceiling zones) as a new area, either exactly or
 as one of the presets (basement, next floor, garage…). **Copy to** on the Stairs
 panel copies a set-up stair to another floor at the same place relative to
 that floor's start point, with the arrow pointing down from above or up from
-below, or beside itself on the same floor. Moving an
+below, or beside itself on the same floor. A structure is named after its type (Dwelling,
+ADU, Detached garage, Barn, Shed, Outbuilding; numbered if repeated) and the
+name follows the type until you type your own. Moving an
 area moves its stairs, ceiling zones and the labels inside it. The sidebar shows Stairs and Ceilings & openings only for areas that have
 them (add them from the Area panel), and every panel collapses by clicking
 its heading; the browser remembers which are collapsed. **Auto fit** (toolbar) keeps the whole sketch centred and in view as you draw;
