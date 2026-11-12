@@ -209,6 +209,17 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
   gap: 4px 10px;
 }
 .vector-label { font-weight: 600; padding-top: 4px; }
+.vector-side { display: flex; flex-direction: column; gap: 4px; position: relative; }
+.tpl summary { cursor: pointer; color: var(--accent); font-size: 12px; list-style: none; }
+.tpl summary::-webkit-details-marker { display: none; }
+.tpl-body {
+  position: absolute; bottom: calc(100% + 12px); left: 0; z-index: 5; width: 290px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); display: flex; flex-direction: column; gap: 6px;
+}
+.tpl-body label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }
+.tpl-params { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tpl-msg { color: var(--warn); min-height: 1em; font-size: 12px; }
 #vectors { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 14px; resize: vertical; }
 .vector-status { grid-column: 2; color: var(--muted); min-height: 1.4em; font-variant-numeric: tabular-nums; }
 .vector-status .ok { color: var(--ok); }

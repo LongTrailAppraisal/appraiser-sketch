@@ -2,8 +2,9 @@
 
 Working name: **sketch** (final name TBD — must be generic and not trademarked).
 Status: draft 1, 2026-11-12. Phase 1 geometry module built and tested; first
-drawing screen working (see README). Still to do in phase 1: templates,
-stairs, zones editor, print/PDF, PNG, workfile folder memory.
+drawing screen working (see README). Stairs, templates and a theme
+selector done. Still to do in phase 1: zones editor (ceiling heights,
+openings), print/PDF, PNG, label dragging, workfile folder memory.
 
 ## 1. Purpose
 
@@ -187,7 +188,12 @@ unfinished living area per level for this.
   length (rewrites the vector text), snap to other areas' corners.
 - Dimension labels on every wall; area label (name + sf) inside each area.
 - Undo/redo for every change (command history over the sketch model).
-- Templates: rectangle, L, T, garage, deck — prompt for dimensions.
+- Templates: rectangle, L, bump-out, 45° bay, bow window, garage, deck —
+  prompt for dimensions and write ordinary vector text.
+- Stairs: symbols on an area (straight, middle landing, L, winder, U) with
+  treads, walking-line arrow and UP/DN; draggable, rotatable. Flagged if drawn
+  outside their area; never change area figures.
+- Theme: Auto (follows the system), Light or Dark; saved per browser.
 
 ## 9. Exports (phase 1)
 

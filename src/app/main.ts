@@ -20,6 +20,8 @@ import {
   defaultStair,
   stairDrawing,
   type Stair,
+  TEMPLATES,
+  checkTemplate,
 } from "../geometry/index.js";
 import { levelName, totalsText } from "../export/text.js";
 import { FileManager, SketchFileError, loadDraft, saveDraft } from "./files.js";
@@ -571,6 +573,73 @@ function drawVectorBar() {
   vstatus.innerHTML =
     parts.join(" · ") + (problems.length ? `<ul>${problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "");
 }
+
+// ---------- templates ----------
+
+const tpl = {
+  box: $<HTMLDetailsElement>("tpl"),
+  select: $<HTMLSelectElement>("tpl-select"),
+  params: $<HTMLDivElement>("tpl-params"),
+  msg: $<HTMLDivElement>("tpl-msg"),
+};
+tpl.select.innerHTML = TEMPLATES.map((t) => `<option value="${t.id}">${esc(t.label)}</option>`).join("");
+
+function drawTemplateParams() {
+  const t = TEMPLATES.find((x) => x.id === tpl.select.value) ?? TEMPLATES[0]!;
+  tpl.params.innerHTML = t.params
+    .map((p) => `<label>${esc(p.label)} <input type="text" inputmode="decimal" data-key="${p.key}" value="${esc(formatFeetInches(p.value))}"/></label>`)
+    .join("");
+  tpl.msg.textContent = "";
+}
+tpl.select.addEventListener("change", drawTemplateParams);
+drawTemplateParams();
+
+/** Read the template form; returns vectors (and kind) or shows why not. */
+function templateResult(): { vectors: string; kind?: AreaKind; label: string } | null {
+  const t = TEMPLATES.find((x) => x.id === tpl.select.value);
+  if (!t) return null;
+  const values: Record<string, number> = {};
+  for (const input of tpl.params.querySelectorAll<HTMLInputElement>("input[data-key]")) {
+    const v = parseLength(input.value);
+    input.classList.toggle("invalid", v === null);
+    if (v === null) {
+      tpl.msg.textContent = "Enter lengths like 24, 24.5 or 24'6\"";
+      return null;
+    }
+    values[input.dataset.key!] = v;
+  }
+  const problem = checkTemplate(t, values);
+  tpl.msg.textContent = problem ?? "";
+  if (problem) return null;
+  return t.kind ? { vectors: t.build(values), kind: t.kind, label: t.label } : { vectors: t.build(values), label: t.label };
+}
+
+$("tpl-apply").addEventListener("click", () => {
+  const r = templateResult();
+  if (!r) return;
+  editArea((a) => {
+    a.vectors = r.vectors;
+    if (r.kind) a.kind = r.kind;
+  });
+  tpl.box.open = false;
+  fit();
+});
+
+$("tpl-new").addEventListener("click", () => {
+  const r = templateResult();
+  const sel = store.state.selection;
+  if (!r) return;
+  const origin = nextFreeOrigin();
+  store.update((draft) => {
+    const s = draft.structures.find((x) => x.id === sel?.structure) ?? draft.structures[0];
+    if (!s) return null;
+    const a = newArea({ name: r.label, origin, vectors: r.vectors, ...(r.kind ? { kind: r.kind } : {}) });
+    s.areas.push(a);
+    return { structure: s.id, area: a.id };
+  });
+  tpl.box.open = false;
+  fit();
+});
 
 // ---------- area table ----------
 

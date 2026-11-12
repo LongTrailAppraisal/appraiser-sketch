@@ -4,3 +4,4 @@ export * from "./vectors.js";
 export * from "./ansi.js";
 export * from "./model.js";
 export * from "./stairs.js";
+export * from "./templates.js";

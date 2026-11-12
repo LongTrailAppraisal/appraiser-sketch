@@ -6,8 +6,10 @@ appraisers. Browser app, local files, no server. Working name.
 Status: the geometry module (vector entry, area math, ANSI rules) is built and
 tested, and the first drawing screen works: live drawing as you type, dimension
 labels, multiple areas and structures, drag with corner snapping, undo/redo,
-area table, copy totals, open/save `.sketch.json`, draft recovery. Templates,
-stairs, print/PDF and PNG are next. See `docs/SPEC.md`.
+area table, copy totals, open/save `.sketch.json`, draft recovery, stairs
+(straight, landing, L, winder, U), templates (rectangle, L, bump-out, 45° bay,
+bow window, garage, deck), and an Auto/Light/Dark theme. Print/PDF and PNG
+are next. See `docs/SPEC.md`.
 
 ## Vector entry
 

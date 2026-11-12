@@ -181,7 +181,21 @@
       <section class="work">
         <div id="canvas" class="canvas" tabindex="0" aria-label="Sketch drawing"></div>
         <div class="vector-bar">
-          <label for="vectors" class="vector-label">Walls</label>
+          <div class="vector-side">
+            <label for="vectors" class="vector-label">Walls</label>
+            <details id="tpl" class="tpl">
+              <summary title="Start this area from a template">Template</summary>
+              <div class="tpl-body">
+                <label>Shape <select id="tpl-select"></select></label>
+                <div id="tpl-params" class="tpl-params"></div>
+                <div id="tpl-msg" class="tpl-msg"></div>
+                <div class="row-buttons">
+                  <button id="tpl-apply">Use for this area</button>
+                  <button id="tpl-new">Add as new area</button>
+                </div>
+              </div>
+            </details>
+          </div>
           <textarea id="vectors" rows="2" spellcheck="false" autocomplete="off"
             placeholder="R24 U30 L24 D30   ·   R24'6&quot;   ·   UR10 (45°)   ·   R10U5 (slope)   ·   A30:12 (angle)   ·   R20^3 (arc)   ·   CL (close)"></textarea>
           <div id="vector-status" class="vector-status"></div>
