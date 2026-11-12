@@ -105,7 +105,7 @@ function drawCanvas() {
   const { width, height } = size();
   const sel = store.state.selection;
   const corner = activeCorner && sel?.area === activeCorner.area && !sel.stair && !sel.zone ? activeCorner.index : null;
-  canvas.innerHTML = renderSketch(result, { width, height, view, selection: sel, grid: showGrid, activeCorner: corner, selectedText, angles: showAngles });
+  canvas.innerHTML = renderSketch(result, { width, height, view, selection: sel, grid: showGrid, activeCorner: corner, selectedText, angles: showAngles, picked });
 }
 
 function sketchBounds() {
@@ -191,7 +191,7 @@ type Drag =
   | { kind: "pan"; startX: number; startY: number; ox: number; oy: number; at: Point; moved: boolean }
   | { kind: "move"; sel: Selection; start: Point; origin: Point; key: string; carry?: string[] }
   | { kind: "handle"; sel: Selection; handle: StairHandleKey; key: string }
-  | { kind: "label"; sel: Selection; start: Point; offset: Point; key: string }
+  | { kind: "label"; sel: Selection; start: Point; offset: Point; key: string; moved?: boolean }
   | { kind: "text"; id: string; start: Point; at: Point; key: string }
   | {
       kind: "corner";
@@ -313,6 +313,14 @@ canvas.addEventListener("pointerdown", (e) => {
     return;
   }
   if (selectedText) selectText(null);
+  const dimEl = el.closest("[data-dim]");
+  if (dimEl && e.button === 0) {
+    const sel: Selection = { structure: dimEl.getAttribute("data-structure")!, area: dimEl.getAttribute("data-area")! };
+    store.select(sel);
+    pick({ kind: "dim", area: sel.area, wall: Number(dimEl.getAttribute("data-dim")) });
+    return;
+  }
+  if (picked) pick(null);
   const handleEl = el.closest("[data-handle]");
   const labelEl = el.closest("[data-label]");
   if (handleEl && e.button === 0) {
@@ -444,6 +452,7 @@ canvas.addEventListener("pointermove", (e) => {
   }
   if (drag.kind === "label") {
     const d = drag;
+    d.moved = true;
     const inch = (v: number) => Math.round(v * 12) / 12;
     const next = { x: inch(d.offset.x + w.x - d.start.x), y: inch(d.offset.y + w.y - d.start.y) };
     store.update(
@@ -518,6 +527,13 @@ canvas.addEventListener("pointermove", (e) => {
 });
 
 function endDrag() {
+  // A click on an area label (no drag) picks it, so Delete can hide it.
+  if (drag?.kind === "label" && !drag.moved) {
+    const area = drag.sel.area;
+    drag = null;
+    pick({ kind: "label", area });
+    return;
+  }
   // A click on a corner (no drag) picks it for Delete wall.
   if (drag?.kind === "corner" && !drag.moved && !drag.normal) {
     const area = drag.sel.area;
@@ -649,6 +665,9 @@ function drawProps() {
   if (!found) return;
   const { area, structure } = found;
   $("copy-walls").classList.toggle("hidden", area.vectors.trim() !== "");
+  const nHidden = area.hiddenDims?.length ?? 0;
+  $("btn-show-dims").classList.toggle("hidden", nHidden === 0);
+  $("btn-show-dims").textContent = `Show ${nHidden} hidden dimension${nHidden === 1 ? "" : "s"}`;
   sync(props.name, area.name);
   sync(props.kind, area.kind);
   sync(props.level, area.level);
@@ -1401,6 +1420,39 @@ function drawMeta() {
   for (const [id, key] of metaFields) sync($<HTMLInputElement>(id), store.state.sketch.meta[key] ?? "");
 }
 
+// ---------- hiding single dimensions and area labels ----------
+
+/** A wall dimension or area label picked on the drawing (Delete hides it). */
+let picked: { kind: "dim" | "label"; area: string; wall?: number } | null = null;
+
+function pick(p: typeof picked) {
+  picked = p;
+  drawCanvas();
+  if (p) say(p.kind === "dim" ? "Press Delete to hide this dimension (double-click hides it too)" : "Press Delete to hide this label");
+}
+
+function hidePicked() {
+  const p = picked;
+  if (!p) return;
+  picked = null;
+  store.update((draft) => {
+    const a = draft.structures.flatMap((s) => s.areas).find((x) => x.id === p.area);
+    if (!a) return;
+    if (p.kind === "label") a.hideLabel = true;
+    else a.hiddenDims = [...new Set([...(a.hiddenDims ?? []), p.wall!])].sort((x, y) => x - y);
+  });
+  say(p.kind === "label" ? "Label hidden — tick Label in the Area panel to show it" : "Dimension hidden — Show hidden dimensions in the Area panel brings it back");
+}
+
+canvas.addEventListener("dblclick", (e) => {
+  const dimEl = (e.target as Element).closest("[data-dim]");
+  if (!dimEl) return;
+  pick({ kind: "dim", area: dimEl.getAttribute("data-area")!, wall: Number(dimEl.getAttribute("data-dim")) });
+  hidePicked();
+});
+
+$("btn-show-dims").addEventListener("click", () => editArea((a) => delete a.hiddenDims));
+
 // ---------- room labels ----------
 
 let selectedText: string | null = null;
@@ -2095,6 +2147,14 @@ document.addEventListener("keydown", (e) => {
       e.preventDefault();
       vectors.focus();
     }
+  } else if (!mod && document.activeElement === canvas && picked && (e.key === "Delete" || e.key === "Backspace")) {
+    e.preventDefault();
+    hidePicked();
+  } else if (!mod && !e.altKey && k === "c" && document.activeElement === canvas) {
+    // C toggles Auto fit (on the drawing; in the walls box it types as usual).
+    setAutoFit(!autoFit);
+    if (autoFit) fit();
+    say(autoFit ? "Auto fit on" : "Auto fit off");
   } else if (!mod && document.activeElement === canvas && selectedText && (e.key === "Delete" || e.key === "Backspace")) {
     e.preventDefault();
     deleteText();
@@ -2104,7 +2164,7 @@ document.addEventListener("keydown", (e) => {
   } else if (!mod && !e.altKey && document.activeElement === canvas && k === "a" && closeKeyIntoWalls(true)) {
     e.preventDefault();
     vectors.focus();
-  } else if (!mod && !e.altKey && e.key.length === 1 && document.activeElement === canvas && k !== "f") {
+  } else if (!mod && !e.altKey && e.key.length === 1 && document.activeElement === canvas && k !== "f" && k !== "c") {
     // Typing on the drawing goes into the walls box, as in other sketch programs.
     e.preventDefault();
     typeIntoWalls(e.key);

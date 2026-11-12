@@ -233,6 +233,9 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
 .handle { fill: var(--canvas); stroke: var(--accent); stroke-width: 2; cursor: grab; }
 .handle:hover { fill: var(--accent); }
 .dim { fill: var(--muted) !important; font-variant-numeric: tabular-nums; }
+.labels text.dim.pickable { pointer-events: auto; cursor: pointer; }
+.labels text.dim.pickable:hover { fill: var(--ink) !important; }
+.labels text.dim.picked, .labels .area-label.picked text { fill: var(--warn) !important; font-weight: 700; }
 .area-name { font-size: 12px; font-weight: 600; }
 .area-size { font-size: 11px; fill: var(--muted) !important; font-variant-numeric: tabular-nums; }
 

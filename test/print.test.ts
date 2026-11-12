@@ -78,3 +78,21 @@ describe("room labels", () => {
     expect(standaloneSvg(computeSketch(sk), 400, 300)).toContain(">Kitchen</text>");
   });
 });
+
+describe("hidden dimensions", () => {
+  it("stay off the printed drawing", async () => {
+    const { computeSketch } = await import("../src/geometry/index.js");
+    const { standaloneSvg } = await import("../src/export/svg.js");
+    const sk = (hiddenDims?: number[]) => ({
+      formatVersion: 1, meta: { ansi: true },
+      structures: [{ id: "s", name: "Dwelling", kind: "dwelling" as const, areas: [{
+        id: "a", name: "First floor", kind: "living" as const, grade: "above" as const, finished: true, level: "1",
+        connected: true, ceiling: "full" as const, origin: { x: 0, y: 0 }, vectors: "R30 U24 L30 D24", zones: [], stairs: [],
+        ...(hiddenDims ? { hiddenDims } : {}),
+      }] }],
+    });
+    const count = (svg: string) => (svg.match(/class="dim"/g) ?? []).length;
+    expect(count(standaloneSvg(computeSketch(sk()), 600, 400))).toBe(4);
+    expect(count(standaloneSvg(computeSketch(sk([1, 2])), 600, 400))).toBe(2);
+  });
+});

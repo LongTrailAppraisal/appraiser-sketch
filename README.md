@@ -74,7 +74,9 @@ ADU, Detached garage, Barn, Shed, Outbuilding; numbered if repeated) and the
 name follows the type until you type your own. Moving an
 area moves its stairs, ceiling zones and the labels inside it. The sidebar shows Stairs and Ceilings & openings only for areas that have
 them (add them from the Area panel), and every panel collapses by clicking
-its heading; the browser remembers which are collapsed. **Auto fit** (toolbar) keeps the whole sketch centred and in view as you draw;
+its heading; the browser remembers which are collapsed. Click a wall dimension or an area label on the drawing and press Delete to
+hide just that one (double-click hides a dimension at once); the Area panel
+brings them back. **C** on the drawing toggles Auto fit. **Auto fit** (toolbar) keeps the whole sketch centred and in view as you draw;
 zooming or panning by hand turns it off, and F or Fit turns it back on. on an area with no walls yet, clicking the drawing
 moves its start point there. Drag an area's label to move it,
 double-click to put it back. The toolbar's Show switches hide dimensions,

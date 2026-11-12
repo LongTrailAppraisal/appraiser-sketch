@@ -62,6 +62,8 @@ export interface Area {
   hideLabel?: boolean;
   /** Hide this area's wall dimensions. */
   hideDims?: boolean;
+  /** Walls (by number, from 0) whose dimension is hidden. */
+  hiddenDims?: number[];
 }
 
 export type StructureKind = "dwelling" | "adu" | "garage" | "barn" | "shed" | "outbuilding";

@@ -72,13 +72,15 @@ function gridMarkup(v: View, width: number, height: number): string {
   return `<g class="grid-layer">${lines.join("")}</g>`;
 }
 
-function dimensionLabels(r: AreaResult, v: View): string {
+function dimensionLabels(r: AreaResult, v: View, pick: { data: string; picked: number | null } | null = null): string {
   const path = r.shape.path;
   if (path.segments.length === 0) return "";
   const orient = orientation(path);
   const out: string[] = [];
   const fontPx = 11;
-  for (const seg of path.segments) {
+  const hidden = new Set(r.area.hiddenDims ?? []);
+  for (const [k, seg] of path.segments.entries()) {
+    if (hidden.has(k)) continue;
     const a = toScreen(v, seg.from);
     const b = toScreen(v, seg.to);
     const len = Math.hypot(b.x - a.x, b.y - a.y);
@@ -102,7 +104,7 @@ function dimensionLabels(r: AreaResult, v: View): string {
     if (deg < -90) deg += 180;
     const text = formatLength(wl) + (seg.kind === "arc" ? ` ⌒${formatLength(Math.abs(seg.sagitta))}` : "");
     out.push(
-      `<text class="dim" font-size="${fontPx}" x="${n(p.x)}" y="${n(p.y)}" transform="rotate(${deg.toFixed(1)} ${n(p.x)} ${n(p.y)})">${esc(text)}</text>`,
+      `<text class="dim${pick ? " pickable" : ""}${pick?.picked === k ? " picked" : ""}"${pick ? ` ${pick.data} data-dim="${k}"` : ""} font-size="${fontPx}" x="${n(p.x)}" y="${n(p.y)}" transform="rotate(${deg.toFixed(1)} ${n(p.x)} ${n(p.y)})">${esc(text)}</text>`,
     );
   }
   return out.join("");
@@ -163,6 +165,8 @@ export interface RenderOptions {
   selectedText?: string | null;
   /** Show inside angles at the selected area's corners (screen only). */
   angles?: boolean;
+  /** A dimension or area label picked for hiding with Delete. */
+  picked?: { kind: "dim" | "label"; area: string; wall?: number } | null;
 }
 
 /** Where an area's label sits: outline centre plus the saved offset. */
@@ -280,14 +284,17 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
       }
 
       if (pts.length >= 3) {
-        if (meta.showDims !== false && !r.area.hideDims) labels.push(dimensionLabels(r, v));
+        if (meta.showDims !== false && !r.area.hideDims) {
+          const picked = opts.picked?.area === r.area.id && opts.picked.kind === "dim" ? (opts.picked.wall ?? null) : null;
+          labels.push(dimensionLabels(r, v, interactive ? { data, picked } : null));
+        }
         if (meta.showLabels !== false && !r.area.hideLabel) {
           const c = toScreen(v, labelPoint(r));
           labels.push(
-            `<g class="area-label${selected ? " selected" : ""}" ${data} data-label="1">` +
+            `<g class="area-label${selected ? " selected" : ""}${opts.picked?.kind === "label" && opts.picked.area === r.area.id ? " picked" : ""}" ${data} data-label="1">` +
               `<text class="area-name" x="${n(c.x)}" y="${n(c.y - 2)}">${esc(r.area.name)}</text>` +
               `<text class="area-size" x="${n(c.x)}" y="${n(c.y + 12)}">${esc(areaSizeText(r))}</text>` +
-              `<title>Drag to move the label; double-click to put it back</title></g>`,
+              `<title>Drag to move the label; double-click to put it back; click, then Delete to hide it</title></g>`,
           );
         }
       }
