@@ -159,6 +159,8 @@ export interface RenderOptions {
   interactive?: boolean;
   /** Corner of the selected area picked for editing. */
   activeCorner?: number | null;
+  /** Selected room label id. */
+  selectedText?: string | null;
 }
 
 /** Where an area's label sits: outline centre plus the saved offset. */
@@ -264,6 +266,14 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
         }
       }
     }
+  }
+
+  for (const t of result.sketch.texts ?? []) {
+    const p = toScreen(v, t.at);
+    const on = interactive && opts.selectedText === t.id;
+    labels.push(
+      `<text class="room-label${on ? " selected" : ""}" data-text="${esc(t.id)}" x="${n(p.x)}" y="${n(p.y)}">${esc(t.text)}${interactive ? "<title>Drag to move; Delete removes it</title>" : ""}</text>`,
+    );
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${parts.join("")}<g class="labels">${labels.join("")}</g>${handles.join("")}</svg>`;

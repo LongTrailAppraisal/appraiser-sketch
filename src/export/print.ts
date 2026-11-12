@@ -57,6 +57,7 @@ export function printPageHtml(result: SketchResult): string {
     ["Appraiser", m.appraiser ?? ""],
     ["Date", m.date ?? ""],
   ]
+    .filter(([k, v]) => k === "Property address" || v !== "")
     .map(([k, v]) => `<tr><th>${esc(k!)}</th><td>${esc(v!)}</td></tr>`)
     .join("");
 

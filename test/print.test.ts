@@ -59,3 +59,22 @@ describe("print page", () => {
     expect(b.maxY).toBeCloseTo(36, 9);
   });
 });
+
+describe("room labels", () => {
+  it("are saved, reloaded and drawn on the printed sketch", async () => {
+    const { parseSketchFile, serialize } = await import("../src/app/files.js");
+    const { computeSketch } = await import("../src/geometry/index.js");
+    const { standaloneSvg } = await import("../src/export/svg.js");
+    const sk = parseSketchFile(
+      JSON.stringify({
+        formatVersion: 1,
+        meta: { ansi: true },
+        structures: [],
+        texts: [{ id: "t1", text: "Kitchen", at: { x: 5, y: 5 } }, { text: 3 }],
+      }),
+    );
+    expect(sk.texts).toEqual([{ id: "t1", text: "Kitchen", at: { x: 5, y: 5 } }]);
+    expect(parseSketchFile(serialize(sk)).texts).toEqual(sk.texts);
+    expect(standaloneSvg(computeSketch(sk), 400, 300)).toContain(">Kitchen</text>");
+  });
+});

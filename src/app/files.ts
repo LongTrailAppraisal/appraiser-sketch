@@ -5,7 +5,7 @@
  * in localStorage (best effort; may be unavailable).
  */
 
-import { FORMAT_VERSION, type Area, type Sketch, type Structure } from "../geometry/index.js";
+import { FORMAT_VERSION, type Area, type Sketch, type Structure, type TextLabel } from "../geometry/index.js";
 import { newArea, newId } from "./store.js";
 
 const DRAFT_KEY = "sketch:draft";
@@ -46,7 +46,12 @@ export function parseSketchFile(text: string): Sketch {
     kind: s.kind ?? "dwelling",
     areas: Array.isArray(s.areas) ? s.areas.map((a: Partial<Area>) => newArea({ ...a, id: a.id ?? newId("a") })) : [],
   }));
-  return { formatVersion: FORMAT_VERSION, meta: { ansi: true, ...(o.meta ?? {}) }, structures };
+  const texts: TextLabel[] = Array.isArray(o.texts)
+    ? o.texts
+        .filter((t) => t && typeof t.text === "string" && t.at && Number.isFinite(t.at.x) && Number.isFinite(t.at.y))
+        .map((t) => ({ id: typeof t.id === "string" ? t.id : newId("t"), text: t.text, at: { x: t.at.x, y: t.at.y } }))
+    : [];
+  return { formatVersion: FORMAT_VERSION, meta: { ansi: true, ...(o.meta ?? {}) }, structures, texts };
 }
 
 export function serialize(sketch: Sketch): string {

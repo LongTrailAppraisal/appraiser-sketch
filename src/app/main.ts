@@ -25,6 +25,7 @@ import {
   TEMPLATES,
   checkTemplate,
   ZONE_BANDS,
+  COMMON_LABELS,
   stripZone,
   applyArrow,
   closeOutline,
@@ -37,7 +38,7 @@ import {
 import { levelName, totalsText } from "../export/text.js";
 import { printPageHtml, sketchPng } from "../export/print.js";
 import { FileManager, SketchFileError, download, loadDraft, saveDraft } from "./files.js";
-import { renderSketch, toWorld, type View } from "./render.js";
+import { centroid, renderSketch, toWorld, type View } from "./render.js";
 import { Store, findArea, newArea, newId, newSketch, newStructure, type Selection } from "./store.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -73,7 +74,7 @@ function drawCanvas() {
   const { width, height } = size();
   const sel = store.state.selection;
   const corner = activeCorner && sel?.area === activeCorner.area && !sel.stair && !sel.zone ? activeCorner.index : null;
-  canvas.innerHTML = renderSketch(result, { width, height, view, selection: sel, grid: showGrid, activeCorner: corner });
+  canvas.innerHTML = renderSketch(result, { width, height, view, selection: sel, grid: showGrid, activeCorner: corner, selectedText });
 }
 
 function sketchBounds() {
@@ -85,6 +86,12 @@ function sketchBounds() {
       b = b
         ? { minX: Math.min(b.minX, ab.minX), minY: Math.min(b.minY, ab.minY), maxX: Math.max(b.maxX, ab.maxX), maxY: Math.max(b.maxY, ab.maxY) }
         : ab;
+    }
+  }
+  // Only stretch for labels when there is a drawing, so a lone label doesn't zoom in on itself.
+  if (b) {
+    for (const t of store.state.sketch.texts ?? []) {
+      b = { minX: Math.min(b.minX, t.at.x), minY: Math.min(b.minY, t.at.y), maxX: Math.max(b.maxX, t.at.x), maxY: Math.max(b.maxY, t.at.y) };
     }
   }
   return b;
@@ -153,7 +160,8 @@ type Drag =
   | { kind: "pan"; startX: number; startY: number; ox: number; oy: number; at: Point; moved: boolean }
   | { kind: "move"; sel: Selection; start: Point; origin: Point; key: string }
   | { kind: "handle"; sel: Selection; handle: StairHandleKey; key: string }
-  | { kind: "label"; sel: Selection; start: Point; offset: Point; key: string };
+  | { kind: "label"; sel: Selection; start: Point; offset: Point; key: string }
+  | { kind: "text"; id: string; start: Point; at: Point; key: string };
 
 let drag: Drag | null = null;
 let dragSeq = 0;
@@ -223,6 +231,17 @@ canvas.addEventListener("pointerdown", (e) => {
     drawVectorBar();
     return;
   }
+  const textEl = el.closest("[data-text]");
+  if (textEl && e.button === 0) {
+    const id = textEl.getAttribute("data-text")!;
+    const t = (store.state.sketch.texts ?? []).find((x) => x.id === id);
+    if (!t) return;
+    selectText(id);
+    dragSeq += 1;
+    drag = { kind: "text", id, start: toWorld(view, p), at: { ...t.at }, key: `text:${id}:${dragSeq}` };
+    return;
+  }
+  if (selectedText) selectText(null);
   const handleEl = el.closest("[data-handle]");
   const labelEl = el.closest("[data-label]");
   if (handleEl && e.button === 0) {
@@ -289,6 +308,19 @@ canvas.addEventListener("pointermove", (e) => {
         { coalesce: d.key },
       );
     }
+    return;
+  }
+  if (drag.kind === "text") {
+    const d = drag;
+    const inch = (v: number) => Math.round(v * 12) / 12;
+    const next = { x: inch(d.at.x + w.x - d.start.x), y: inch(d.at.y + w.y - d.start.y) };
+    store.update(
+      (draft) => {
+        const t = (draft.texts ?? []).find((x) => x.id === d.id);
+        if (t) t.at = next;
+      },
+      { coalesce: d.key },
+    );
     return;
   }
   if (drag.kind === "label") {
@@ -1128,15 +1160,8 @@ $("tpl-new").addEventListener("click", () => {
 
 // ---------- report header ----------
 
-type MetaKey = "subject" | "borrower" | "client" | "fileNumber" | "date" | "appraiser";
-const metaFields: [string, MetaKey][] = [
-  ["m-subject", "subject"],
-  ["m-borrower", "borrower"],
-  ["m-client", "client"],
-  ["m-file", "fileNumber"],
-  ["m-date", "date"],
-  ["m-appraiser", "appraiser"],
-];
+type MetaKey = "subject";
+const metaFields: [string, MetaKey][] = [["m-subject", "subject"]];
 for (const [id, key] of metaFields) {
   const el = $<HTMLInputElement>(id);
   el.addEventListener("input", () =>
@@ -1153,6 +1178,84 @@ for (const [id, key] of metaFields) {
 function drawMeta() {
   for (const [id, key] of metaFields) sync($<HTMLInputElement>(id), store.state.sketch.meta[key] ?? "");
 }
+
+// ---------- room labels ----------
+
+let selectedText: string | null = null;
+const labelText = $<HTMLInputElement>("label-text");
+const labelCustom = $<HTMLInputElement>("label-custom");
+$("label-chips").innerHTML = COMMON_LABELS.map((t) => `<button data-label-text="${esc(t)}">${esc(t)}</button>`).join("");
+
+function selectText(id: string | null) {
+  selectedText = id;
+  drawLabels();
+  drawCanvas();
+}
+
+function drawLabels() {
+  const texts = store.state.sketch.texts ?? [];
+  if (selectedText && !texts.some((t) => t.id === selectedText)) selectedText = null;
+  const t = texts.find((x) => x.id === selectedText);
+  $("label-edit").classList.toggle("hidden", !t);
+  if (t) sync(labelText, t.text);
+}
+
+/** Put a label on the sketch: in the selected area if it has walls, else the middle of the view. */
+function addText(text: string) {
+  const name = text.trim();
+  if (!name) return;
+  const ar = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === store.state.selection?.area);
+  const { width, height } = size();
+  const base = ar && flatten(ar.shape.path).length >= 3 ? centroid(flatten(ar.shape.path)) : toWorld(view, { x: width / 2, y: height / 2 });
+  // Stagger labels dropped on the same spot so they don't stack.
+  const near = (store.state.sketch.texts ?? []).filter((t) => Math.hypot(t.at.x - base.x, t.at.y - base.y - 0) < 20).length;
+  const inch = (v: number) => Math.round(v * 12) / 12;
+  const at = { x: inch(base.x), y: inch(base.y - 2 - (near % 6) * 1.5) };
+  const id = newId("t");
+  store.update((draft) => {
+    (draft.texts ??= []).push({ id, text: name, at });
+  });
+  selectText(id);
+  canvas.focus();
+}
+
+function deleteText() {
+  const id = selectedText;
+  if (!id) return;
+  store.update((draft) => {
+    draft.texts = (draft.texts ?? []).filter((t) => t.id !== id);
+  });
+  selectText(null);
+  say("Label deleted (Ctrl+Z to undo)");
+}
+
+$("label-chips").addEventListener("click", (e) => {
+  const b = (e.target as Element).closest("[data-label-text]");
+  if (b) addText(b.getAttribute("data-label-text")!);
+});
+$("btn-add-label").addEventListener("click", () => {
+  addText(labelCustom.value);
+  labelCustom.value = "";
+});
+labelCustom.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    addText(labelCustom.value);
+    labelCustom.value = "";
+  }
+});
+labelText.addEventListener("input", () => {
+  const id = selectedText;
+  if (!id) return;
+  store.update(
+    (draft) => {
+      const t = (draft.texts ?? []).find((x) => x.id === id);
+      if (t) t.text = labelText.value;
+    },
+    { coalesce: `text-edit-${id}` },
+  );
+});
+$("btn-delete-label").addEventListener("click", deleteText);
 
 // ---------- print and PNG ----------
 
@@ -1425,6 +1528,9 @@ document.addEventListener("keydown", (e) => {
       e.preventDefault();
       vectors.focus();
     }
+  } else if (!mod && document.activeElement === canvas && selectedText && (e.key === "Delete" || e.key === "Backspace")) {
+    e.preventDefault();
+    deleteText();
   } else if (!mod && !e.altKey && document.activeElement === canvas && e.key === "Backspace") {
     e.preventDefault();
     deleteWallAction();
@@ -1490,6 +1596,7 @@ function redraw() {
   drawTree();
   drawProps();
   drawMeta();
+  drawLabels();
   drawStairs();
   drawZones();
   drawVectorBar();

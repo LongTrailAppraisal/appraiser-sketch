@@ -88,10 +88,27 @@ export interface SketchMeta {
   showLabels?: boolean;
 }
 
+/** A free text label on the drawing (room names: "Bedroom", "Kitchen"…). */
+export interface TextLabel {
+  id: string;
+  text: string;
+  /** World position of the text's centre, feet. */
+  at: Point;
+}
+
+/** Room names offered as one-click labels. */
+export const COMMON_LABELS = [
+  "Bedroom", "Primary Bedroom", "Full Bath", "3/4 Bath", "Half Bath", "Kitchen", "Living Room",
+  "Dining Room", "Family Room", "Den", "Office", "Laundry", "Mudroom", "Foyer", "Hall", "Closet",
+  "Walk-in Closet", "Pantry", "Utility", "Mechanical", "Storage", "Bonus Room", "Sunroom", "Rec Room",
+];
+
 export interface Sketch {
   formatVersion: number;
   meta: SketchMeta;
   structures: Structure[];
+  /** Room and other free labels, drawn on top. */
+  texts?: TextLabel[];
 }
 
 export interface ShapeResult {

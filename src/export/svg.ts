@@ -27,6 +27,7 @@ text { font-family: Arial, Helvetica, sans-serif; }
 .dim { fill: #333; font-size: 10px; }
 .area-name { font-size: 11px; font-weight: bold; }
 .area-size { font-size: 10px; fill: #333; }
+.room-label { font-size: 10px; fill: #111; }
 `;
 
 /** Bounds of everything drawn: outlines, stairs and moved labels. */
@@ -50,6 +51,7 @@ export function drawingBounds(result: SketchResult): Bounds | null {
       }
     }
   }
+  for (const t of result.sketch.texts ?? []) add(t.at.x, t.at.y);
   return b;
 }
 

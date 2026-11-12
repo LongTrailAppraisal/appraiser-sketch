@@ -264,16 +264,24 @@
 
       <aside class="totals">
         <section class="panel">
-          <h2>Report header</h2>
+          <h2>Property</h2>
           <div class="form">
             <label>Property address <input id="m-subject" type="text" /></label>
-            <label>Borrower <input id="m-borrower" type="text" /></label>
-            <label>Lender/Client <input id="m-client" type="text" /></label>
+          </div>
+        </section>
+        <section class="panel" id="labels-panel">
+          <h2>Room labels</h2>
+          <div id="label-chips" class="chips"></div>
+          <div class="form">
             <div class="pair">
-              <label>File number <input id="m-file" type="text" /></label>
-              <label>Date <input id="m-date" type="text" placeholder="MM/DD/YYYY" /></label>
+              <label>Custom <input id="label-custom" type="text" placeholder="e.g. Sauna" /></label>
+              <button id="btn-add-label" title="Put this label on the sketch">Add</button>
             </div>
-            <label>Appraiser <input id="m-appraiser" type="text" /></label>
+            <div id="label-edit" class="form hidden">
+              <label>Selected label <input id="label-text" type="text" /></label>
+              <div class="row-buttons"><button id="btn-delete-label" class="danger">Delete label</button></div>
+            </div>
+            <div class="note-small">Click a name to put it on the sketch, then drag it into place.</div>
           </div>
         </section>
         <section class="panel">
