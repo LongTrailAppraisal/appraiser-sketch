@@ -82,28 +82,28 @@ describe("House B: traditional, out-of-square first floor, basement, 1-car garag
   });
 });
 
-describe("House C: colonial with notched, out-of-square first floor and 2-car garage", () => {
+describe("House C: ranch with walkout basement, 2-car garage, deck and porch", () => {
   const r = computeStructure(
     house([
-      // From the family room's back-left corner, clockwise. The 25'10" rear wall rises 2".
-      area("First floor", "R16'2\" D8'10\" R5 D2'10\" R25'10\"U2\" D26'10\" L30'10\" U9'2\" L16'2\" U29'2\""),
-      area("Second floor", "R30'10\" U26'10\" L30'10\" D26'10\"", { level: "2" }),
-      area("Basement", "R30'6\" U26'6\" L30'6\" D26'6\"", { level: "basement", grade: "below", finished: false }),
-      area("Screened porch", "R22 U16 L22 D16", { kind: "porch" }),
-      area("2-car garage", "R24'2\" U29'2\" L24'2\" D29'2\"", { kind: "garage" }),
+      area("First floor", "R63'4\" U28'4\" L63'4\" D28'4\""),
+      area("Basement", "R63 U28 L63 D28", { level: "basement", grade: "below", finished: false }),
+      area("Wood deck", "R48 U8 L48 D8", { kind: "deck" }),
+      area("2-car garage", "R26'4\" U26'2\" L26'4\" D26'2\"", { kind: "garage" }),
+      area("Open porch", "R22'2\" U8'2\" L22'2\" D8'2\"", { kind: "porch" }),
     ]),
   );
   const a = byName(r);
 
-  it("closes and matches each area in Total's table", () => {
-    expect(r.areas.flatMap((x) => x.problems)).toEqual([]);
-    expect(a["First floor"]!.ansi.counted).toBeCloseTo(1310.07, 2);
-    expect(a["Second floor"]!.ansi.counted).toBeCloseTo(827.36, 2);
-    expect(a["Basement"]!.ansi.counted).toBeCloseTo(808.25, 2);
-    expect(a["2-car garage"]!.ansi.counted).toBeCloseTo(704.86, 2);
+  it("matches each area in Total's table", () => {
+    expect(a["First floor"]!.ansi.counted).toBeCloseTo(1794.44, 2);
+    expect(a["Basement"]!.ansi.counted).toBeCloseTo(1764, 2);
+    expect(a["Wood deck"]!.ansi.counted).toBeCloseTo(384, 2);
+    expect(a["2-car garage"]!.ansi.counted).toBeCloseTo(689.06, 2);
+    expect(a["Open porch"]!.ansi.counted).toBeCloseTo(181.03, 2);
   });
 
-  it("reports GLA 2,137", () => {
-    expect(r.reported).toMatchObject({ gla: 2137, unfinishedBelow: 808, garage: 705, porch: 352 });
+  it("reports GLA 1,794", () => {
+    expect(r.areas.flatMap((x) => x.problems)).toEqual([]);
+    expect(r.reported).toMatchObject({ gla: 1794, unfinishedBelow: 1764, garage: 689, deck: 384, porch: 181 });
   });
 });

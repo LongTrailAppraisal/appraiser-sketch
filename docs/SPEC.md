@@ -227,5 +227,5 @@ hand-calculated houses and the user's past sketches with known areas.
 3. Reggora: any import route for sketch images or area data (user asking
    Reggora support); a sample finished report for field names.
 4. Final project name and license confirmation.
-5. Test houses: three past jobs are in `test/real-houses.test.ts` (dimensions
+5. Test houses: three past jobs (A, B, C) are in `test/real-houses.test.ts` (dimensions
    only; sources in gitignored `test/fixtures/private/`).
