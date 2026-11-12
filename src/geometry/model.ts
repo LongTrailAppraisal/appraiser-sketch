@@ -150,6 +150,34 @@ function onSegment(p: Point, a: Point, b: Point): boolean {
   return dot >= -EDGE_TOL && dot <= len * len + EDGE_TOL;
 }
 
+/** Point strictly inside a polygon (not on its boundary). */
+function strictlyInside(poly: Point[], p: Point): boolean {
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if (onSegment(p, poly[i]!, poly[j]!)) return false;
+  return containsPoint(poly, p);
+}
+
+/**
+ * Whether two zone outlines overlap (share more than an edge). Checks each
+ * outline's corners, edge midpoints and centre against the other, which
+ * catches the overlaps zones produce in practice (strips, rectangles).
+ */
+export function outlinesOverlap(a: Point[], b: Point[]): boolean {
+  if (a.length < 3 || b.length < 3) return false;
+  const probes = (poly: Point[]) => {
+    const pts = [...poly];
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i]!;
+      const q = poly[(i + 1) % poly.length]!;
+      pts.push({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
+    }
+    const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
+    const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
+    pts.push({ x: cx, y: cy });
+    return pts;
+  };
+  return probes(a).some((p) => strictlyInside(b, p)) || probes(b).some((p) => strictlyInside(a, p));
+}
+
 /** Point inside a polygon or on its boundary. */
 export function containsPoint(poly: Point[], p: Point): boolean {
   let inside = false;
@@ -185,6 +213,17 @@ export function computeArea(area: Area, opts: { ansi?: boolean } = {}): AreaResu
     if (!inside) problems.push(`zone ${label}: extends outside the area`);
     return { ...s, zone, inside };
   });
+
+  const zoneOutlines = zones.map((z) => flatten(z.path));
+  for (let i = 0; i < zones.length; i++) {
+    for (let j = i + 1; j < zones.length; j++) {
+      if (outlinesOverlap(zoneOutlines[i]!, zoneOutlines[j]!)) {
+        const li = zones[i]!.zone.name ?? `${i + 1}`;
+        const lj = zones[j]!.zone.name ?? `${j + 1}`;
+        problems.push(`zones ${li} and ${lj} overlap; the overlap is counted twice, so adjust one of them`);
+      }
+    }
+  }
 
   (area.stairs ?? []).forEach((st, i) => {
     if (outline.length < 3) return;

@@ -24,6 +24,12 @@ import {
   dragStairHandle,
   TEMPLATES,
   checkTemplate,
+  ZONE_BANDS,
+  stripZone,
+  type AreaResult,
+  type Area,
+  type Side,
+  type ZoneBand,
 } from "../geometry/index.js";
 import { levelName, totalsText } from "../export/text.js";
 import { printPageHtml, sketchPng } from "../export/print.js";
@@ -156,6 +162,7 @@ function dragOrigin(sel: Selection): Point | null {
   const f = findArea(store.state.sketch, sel);
   if (!f) return null;
   if (sel.stair) return (f.area.stairs ?? []).find((st) => st.id === sel.stair)?.origin ?? null;
+  if (sel.zone) return f.area.zones.find((z) => z.id === sel.zone)?.origin ?? null;
   return f.area.origin;
 }
 
@@ -191,10 +198,12 @@ canvas.addEventListener("pointerdown", (e) => {
     drag = { kind: "label", sel, start: toWorld(view, p), offset: { ...(f?.area.label ?? { x: 0, y: 0 }) }, key: `label:${sel.area}:${dragSeq}` };
     return;
   }
-  if ((stairEl || areaEl) && e.button === 0) {
-    const t = (stairEl ?? areaEl)!;
+  const zoneEl = stairEl ? null : el.closest("[data-zone]");
+  if ((stairEl || zoneEl || areaEl) && e.button === 0) {
+    const t = (stairEl ?? zoneEl ?? areaEl)!;
     const sel: Selection = { structure: t.getAttribute("data-structure")!, area: t.getAttribute("data-area")! };
     if (stairEl) sel.stair = stairEl.getAttribute("data-stair")!;
+    if (zoneEl) sel.zone = zoneEl.getAttribute("data-zone")!;
     store.select(sel);
     const origin = dragOrigin(sel);
     if (origin) {
@@ -256,6 +265,18 @@ canvas.addEventListener("pointermove", (e) => {
     if (!st) return;
     const mine = stairDrawing({ ...st, origin: d.origin }).parts.flat();
     next = snapMove(mine, areaVertices(), d.origin, proposed, e.altKey);
+  } else if (d.sel.zone) {
+    const ar = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === d.sel.area);
+    const zr = ar?.zones.find((z) => z.zone.id === d.sel.zone);
+    if (!ar || !zr) return;
+    const cur = zr.zone.origin;
+    const mine = flatten(zr.path, Math.PI / 8).map((q) => ({ x: q.x - cur.x + d.origin.x, y: q.y - cur.y + d.origin.y }));
+    // Snap to the area's corners and to the other zones' corners.
+    const targets = [
+      ...flatten(ar.shape.path, Math.PI / 8),
+      ...ar.zones.filter((z) => z.zone.id !== d.sel.zone).flatMap((z) => flatten(z.path, Math.PI / 8)),
+    ];
+    next = snapMove(mine, targets, d.origin, proposed, e.altKey);
   } else {
     const ar = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === d.sel.area);
     if (!ar) return;
@@ -276,6 +297,9 @@ canvas.addEventListener("pointermove", (e) => {
         if (d.sel.stair) {
           const st = (f.area.stairs ?? []).find((x) => x.id === d.sel.stair);
           if (st) st.origin = next;
+        } else if (d.sel.zone) {
+          const z = f.area.zones.find((x) => x.id === d.sel.zone);
+          if (z) z.origin = next;
         } else {
           f.area.origin = next;
         }
@@ -320,7 +344,7 @@ function drawTree() {
         .map((a) => {
           const selected = sel?.area === a.area.id ? " selected" : "";
           const warn = a.problems.length ? ` <span class="warn" title="${esc(a.problems.join("\n"))}">⚠</span>` : "";
-          return `<li class="area-item${selected}" data-structure="${s.structure.id}" data-area="${a.area.id}"><span>${esc(a.area.name)}${warn}</span><span class="sf">${formatSqFt(a.shape.area, 0)}</span></li>`;
+          return `<li class="area-item${selected}" data-structure="${s.structure.id}" data-area="${a.area.id}"><span>${esc(a.area.name)}${warn}</span><span class="sf" title="${a.area.kind === "living" ? "Counted under ANSI" : "Area"}">${formatSqFt(a.area.kind === "living" ? a.ansi.counted : a.shape.area, 0)}</span></li>`;
         })
         .join("");
       const current = sel?.structure === s.structure.id ? " current" : "";
@@ -627,12 +651,147 @@ lengthField(stairs.run2, (st, v) => (st.run2 = v), "st-run2");
 lengthField(stairs.x, (st, v) => (st.origin = { ...st.origin, x: v }), "st-x", true);
 lengthField(stairs.y, (st, v) => (st.origin = { ...st.origin, y: v }), "st-y", true);
 
+// ---------- ceiling zones and openings ----------
+
+const zones = {
+  panel: $<HTMLElement>("zones-panel"),
+  list: $<HTMLDivElement>("zone-list"),
+  form: $<HTMLDivElement>("zone-form"),
+  name: $<HTMLInputElement>("z-name"),
+  band: $<HTMLSelectElement>("z-band"),
+  side: $<HTMLSelectElement>("z-side"),
+  bandNew: $<HTMLSelectElement>("z-band-new"),
+  depth: $<HTMLInputElement>("z-depth"),
+  inset: $<HTMLInputElement>("z-inset"),
+};
+const bandOptions = ZONE_BANDS.map((b) => `<option value="${b.value}">${esc(b.label)}</option>`).join("");
+zones.band.innerHTML = bandOptions;
+zones.bandNew.innerHTML = bandOptions;
+
+function drawZones() {
+  const sel = store.state.selection;
+  const f = findArea(store.state.sketch, sel);
+  zones.panel.classList.toggle("hidden", !f || f.area.kind !== "living");
+  if (!f) return;
+  const list = f.area.zones;
+  zones.list.innerHTML = list.length
+    ? list
+        .map((z, i) => {
+          const short = ZONE_BANDS.find((b) => b.value === z.band)?.short ?? z.band;
+          return `<button data-zone="${esc(z.id)}" class="${sel?.zone === z.id ? "selected" : ""}">${i + 1}. ${esc(z.name ? `${z.name} (${short})` : short)}</button>`;
+        })
+        .join("")
+    : `<span class="empty">None — the whole area has the ceiling set above</span>`;
+  const z = sel?.zone ? list.find((x) => x.id === sel.zone) : undefined;
+  zones.form.classList.toggle("hidden", !z);
+  if (!z) return;
+  sync(zones.name, z.name ?? "");
+  sync(zones.band, z.band);
+}
+
+function editZone(fn: (z: Area["zones"][number]) => void, coalesce?: string) {
+  const zoneId = store.state.selection?.zone;
+  if (!zoneId) return;
+  editArea((a) => {
+    const z = a.zones.find((x) => x.id === zoneId);
+    if (z) fn(z);
+  }, coalesce ? `${coalesce}-${zoneId}` : undefined);
+}
+
+zones.list.addEventListener("click", (e) => {
+  const b = (e.target as Element).closest("[data-zone]");
+  const sel = store.state.selection;
+  if (b && sel) store.select({ structure: sel.structure, area: sel.area, zone: b.getAttribute("data-zone")! });
+});
+zones.name.addEventListener("input", () =>
+  editZone((z) => {
+    const v = zones.name.value.trim();
+    if (v) z.name = v;
+    else delete z.name;
+  }, "zone-name"),
+);
+zones.band.addEventListener("change", () => editZone((z) => (z.band = zones.band.value as ZoneBand)));
+
+function addZone(z: Omit<Area["zones"][number], "id">) {
+  const sel = store.state.selection;
+  if (!sel) return;
+  const id = newId("z");
+  store.update((draft) => {
+    const f = findArea(draft, sel);
+    if (!f) return;
+    f.area.zones.push({ id, ...z });
+    return { structure: sel.structure, area: sel.area, zone: id };
+  });
+}
+
+$("btn-add-strip").addEventListener("click", () => {
+  const sel = store.state.selection;
+  const ar = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === sel?.area);
+  if (!ar || ar.shape.path.segments.length === 0) {
+    say("Draw the area's walls first");
+    return;
+  }
+  const depth = parseLength(zones.depth.value);
+  const inset = parseLength(zones.inset.value) ?? 0;
+  if (depth === null || depth <= 0) {
+    zones.depth.classList.add("invalid");
+    say("Enter a depth like 4' or 3'6\"");
+    return;
+  }
+  zones.depth.classList.remove("invalid");
+  const strip = stripZone(bounds(ar.shape.path), zones.side.value as Side, depth, inset);
+  addZone({ band: zones.bandNew.value as ZoneBand, ...strip });
+});
+
+$("btn-add-zone").addEventListener("click", () => {
+  const f = findArea(store.state.sketch, store.state.selection);
+  if (!f) return;
+  addZone({ band: zones.bandNew.value as ZoneBand, origin: { ...f.area.origin }, vectors: "" });
+  vectors.focus();
+});
+
+$("btn-delete-zone").addEventListener("click", () => {
+  const sel = store.state.selection;
+  if (!sel?.zone) return;
+  store.update((draft) => {
+    const f = findArea(draft, sel);
+    if (f) f.area.zones = f.area.zones.filter((z) => z.id !== sel.zone);
+    return { structure: sel.structure, area: sel.area };
+  });
+  say("Zone deleted (Ctrl+Z to undo)");
+});
+
 // ---------- vector bar ----------
 
 const vectors = $<HTMLTextAreaElement>("vectors");
 const vstatus = $<HTMLDivElement>("vector-status");
 
-vectors.addEventListener("input", () => editArea((a) => (a.vectors = vectors.value), "vectors"));
+vectors.addEventListener("input", () => {
+  const zoneId = store.state.selection?.zone;
+  if (zoneId) {
+    editArea((a) => {
+      const z = a.zones.find((x) => x.id === zoneId);
+      if (z) z.vectors = vectors.value;
+    }, `zone-vectors-${zoneId}`);
+  } else {
+    editArea((a) => (a.vectors = vectors.value), "vectors");
+  }
+});
+
+const vectorLabel = document.querySelector<HTMLLabelElement>(".vector-label")!;
+
+/** One line on how the area's ceiling zones and openings are counted. */
+function zoneBreakdown(r: AreaResult): string {
+  if (r.zones.length === 0 || r.area.kind !== "living") return "";
+  const a = r.ansi;
+  const bits = [
+    a.full > 0.05 ? `7'+ ${formatSqFt(a.full)}` : "",
+    a.reduced > 0.05 ? `5'–7' ${formatSqFt(a.reduced)}` : "",
+    a.low > 0.05 ? `under 5' ${formatSqFt(a.low)} (not counted)` : "",
+    a.opening > 0.05 ? `open ${formatSqFt(a.opening)} (not counted)` : "",
+  ].filter(Boolean);
+  return `<div>Ceilings: ${bits.join(" · ")}</div>`;
+}
 
 function drawVectorBar() {
   const sel = store.state.selection;
@@ -643,9 +802,26 @@ function drawVectorBar() {
     vstatus.textContent = "Select or add an area.";
     return;
   }
-  sync(vectors, found.area.vectors);
   const r = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === found.area.id);
   if (!r) return;
+  const zr = sel?.zone ? r.zones.find((z) => z.zone.id === sel.zone) : undefined;
+  vectorLabel.textContent = zr ? "Zone" : "Walls";
+  sync(vectors, zr ? zr.zone.vectors : found.area.vectors);
+  if (zr) {
+    const band = ZONE_BANDS.find((b) => b.value === zr.zone.band)?.label ?? zr.zone.band;
+    const bits = [
+      zr.path.segments.length === 0
+        ? "Type the zone outline from its start point"
+        : zr.closure.closed
+          ? `<span class="ok">✓ closed</span>`
+          : `<span class="bad">open (${closingMove(zr.closure.dx, zr.closure.dy)} to close)</span>`,
+      `${formatSqFt(zr.area)} sf`,
+      esc(band),
+      zr.inside ? "" : `<span class="bad">extends outside ${esc(found.area.name)}</span>`,
+    ].filter(Boolean);
+    vstatus.innerHTML = bits.join(" · ") + zoneBreakdown(r);
+    return;
+  }
   const sh = r.shape;
   if (sh.path.segments.length === 0) {
     vstatus.innerHTML = "Type walls from the start point, e.g. <b>R24 U30 L24 D30</b>.";
@@ -662,7 +838,7 @@ function drawVectorBar() {
   if (r.ansi.bucket !== "excluded" || r.ansi.counted > 0) parts.push(`→ ${BUCKET_LABELS[r.ansi.bucket]} ${formatSqFt(r.ansi.counted)} sf`);
   const problems = r.problems.filter((p) => !p.startsWith("outline does not close"));
   vstatus.innerHTML =
-    parts.join(" · ") + (problems.length ? `<ul>${problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "");
+    parts.join(" · ") + zoneBreakdown(r) + (problems.length ? `<ul>${problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "");
 }
 
 // ---------- templates ----------
@@ -1070,6 +1246,7 @@ function redraw() {
   drawProps();
   drawMeta();
   drawStairs();
+  drawZones();
   drawVectorBar();
   drawTable();
   drawToolbar();
@@ -1087,6 +1264,9 @@ try {
 }
 
 store.subscribe(redraw);
+// Save the draft at once when the page goes away, so a quick reload or close
+// doesn't lose the last change (drafts are otherwise saved 0.4 s after edits).
+window.addEventListener("pagehide", () => saveDraft(store.state.sketch));
 store.subscribe((st) => {
   try {
     localStorage.setItem(SELECTION_KEY, JSON.stringify(st.selection));

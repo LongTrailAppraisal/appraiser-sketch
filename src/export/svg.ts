@@ -13,7 +13,9 @@ text { font-family: Arial, Helvetica, sans-serif; }
 .area.kind-deck { stroke-dasharray: 6 4; }
 .area.has-problems { stroke: #b3261e; }
 .zone { fill: none; stroke: #777; stroke-width: 0.8; stroke-dasharray: 3 3; }
-.zone-low { fill: #f2f2f2; }
+.zone-low { fill: #ececec; }
+.zone-reduced { fill: #f6f6f6; }
+.zone-label { font-size: 9px; font-style: italic; fill: #444; }
 .zone-opening { fill: #fbeaea; }
 .stair { fill: #fff; stroke: #111; stroke-width: 1; }
 .tread { stroke: #666; stroke-width: 0.7; }

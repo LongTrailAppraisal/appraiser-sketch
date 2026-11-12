@@ -125,6 +125,42 @@
           </div>
         </section>
 
+        <section class="panel" id="zones-panel">
+          <h2>Ceilings &amp; openings</h2>
+          <div id="zone-list" class="chips"></div>
+          <div class="form">
+            <div id="zone-form" class="form">
+              <label>Zone name <input id="z-name" type="text" placeholder="optional" /></label>
+              <label>Ceiling <select id="z-band"></select></label>
+              <div class="row-buttons"><button id="btn-delete-zone" class="danger">Delete zone</button></div>
+              <div class="note-small">Type the zone's outline in the box below, or drag it; it snaps to corners.</div>
+            </div>
+            <details id="zone-add" open>
+              <summary>Add a zone</summary>
+              <div class="pair">
+                <label>Along the
+                  <select id="z-side">
+                    <option value="north">North wall</option>
+                    <option value="south">South wall</option>
+                    <option value="east">East wall</option>
+                    <option value="west">West wall</option>
+                  </select>
+                </label>
+                <label>Ceiling <select id="z-band-new"></select></label>
+              </div>
+              <div class="pair">
+                <label>Depth <input id="z-depth" type="text" value="4'" /></label>
+                <label>In from wall <input id="z-inset" type="text" value="0'" /></label>
+              </div>
+              <div class="row-buttons">
+                <button id="btn-add-strip" title="A strip the full length of the area's side">Add strip</button>
+                <button id="btn-add-zone" title="Type any outline">Custom zone</button>
+              </div>
+            </details>
+            <div class="note-small">Mark space with low ceilings or open to below. Under 5' and openings aren't counted; if less than half of the rest is 7' or more, the area is non-standard (ANSI Z765).</div>
+          </div>
+        </section>
+
         <section class="panel" id="stairs-panel">
           <div class="panel-head">
             <h2>Stairs</h2>

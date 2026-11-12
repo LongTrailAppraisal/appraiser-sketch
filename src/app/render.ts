@@ -12,6 +12,7 @@ import {
   signedPolygonArea,
   stairDrawing,
   stairHandles,
+  ZONE_BANDS,
   type AreaResult,
   type Stair,
   type Point,
@@ -107,6 +108,14 @@ function dimensionLabels(r: AreaResult, v: View): string {
   return out.join("");
 }
 
+/** "1,248.0 sf", or "512.0 sf (768.0 gross)" when ANSI counts less than the outline. */
+export function areaSizeText(r: AreaResult): string {
+  const gross = r.shape.area;
+  const counted = r.ansi.counted;
+  if (r.area.kind === "living" && Math.abs(gross - counted) > 0.05) return `${formatSqFt(counted)} sf (${formatSqFt(gross)} gross)`;
+  return `${formatSqFt(gross)} sf`;
+}
+
 function stairMarkup(st: Stair, v: View, data: string, selected: boolean): string {
   const d = stairDrawing(st);
   const poly = (pts: Point[]) => `M${pts.map((p) => toScreen(v, p)).map((p) => `${n(p.x)},${n(p.y)}`).join("L")}Z`;
@@ -168,7 +177,7 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
     for (const r of s.areas) {
       const pts = flatten(r.shape.path, Math.PI / 48);
       const selected = selection?.structure === s.structure.id && selection.area === r.area.id;
-      const areaSelected = selected && !selection?.stair;
+      const areaSelected = selected && !selection?.stair && !selection?.zone;
       const cls = ["area", `kind-${r.area.kind}`, `bucket-${r.ansi.bucket}`, areaSelected ? "selected" : "", r.problems.length ? "has-problems" : ""]
         .filter(Boolean)
         .join(" ");
@@ -184,11 +193,16 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
 
       // Zones (ceiling bands, openings) inside the area.
       for (const z of r.zones) {
-        const zp = flatten(z.path).map((p) => toScreen(v, p));
+        const wp = flatten(z.path);
+        const zp = wp.map((p) => toScreen(v, p));
         if (zp.length >= 3) {
+          const zsel = selected && selection?.zone === z.zone.id;
           parts.push(
-            `<path class="zone zone-${z.zone.band}" ${data} d="M${zp.map((p) => `${n(p.x)},${n(p.y)}`).join("L")}Z"/>`,
+            `<path class="zone zone-${z.zone.band}${zsel ? " selected" : ""}${z.inside ? "" : " outside"}" ${data} data-zone="${esc(z.zone.id)}" d="M${zp.map((p) => `${n(p.x)},${n(p.y)}`).join("L")}Z"/>`,
           );
+          const c = toScreen(v, centroid(wp));
+          const short = ZONE_BANDS.find((b) => b.value === z.zone.band)?.short ?? z.zone.band;
+          labels.push(`<text class="zone-label" x="${n(c.x)}" y="${n(c.y)}">${esc(z.zone.name ? `${z.zone.name} · ${short}` : short)}</text>`);
         }
       }
 
@@ -226,7 +240,7 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
           labels.push(
             `<g class="area-label${selected ? " selected" : ""}" ${data} data-label="1">` +
               `<text class="area-name" x="${n(c.x)}" y="${n(c.y - 2)}">${esc(r.area.name)}</text>` +
-              `<text class="area-size" x="${n(c.x)}" y="${n(c.y + 12)}">${formatSqFt(r.shape.area)} sf</text>` +
+              `<text class="area-size" x="${n(c.x)}" y="${n(c.y + 12)}">${esc(areaSizeText(r))}</text>` +
               `<title>Drag to move the label; double-click to put it back</title></g>`,
           );
         }

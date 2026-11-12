@@ -149,7 +149,7 @@ button.link:disabled { color: var(--muted); }
 .chips button.selected { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .chips .empty { color: var(--muted); }
 .note-small { color: var(--muted); font-size: 11.5px; }
-#stair-form.hidden { display: none; }
+#stair-form.hidden, #zone-form.hidden, .panel.hidden { display: none; }
 #stair-form.one-flight .two-flight, #stair-form.no-turn .turning { visibility: hidden; }
 input.invalid { border-color: var(--warn); }
 details summary { cursor: pointer; color: var(--muted); }
@@ -182,9 +182,13 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
 .area.selected { stroke: var(--accent); stroke-width: 2.6; }
 .area.has-problems { stroke: var(--warn); }
 
-.zone { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
-.zone-low { fill: rgba(128, 128, 128, 0.12); }
-.zone-opening { fill: rgba(179, 38, 30, 0.08); }
+.zone { fill: rgba(128, 128, 128, 0.001); stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; cursor: move; }
+.zone-low { fill: rgba(128, 128, 128, 0.16); }
+.zone-reduced { fill: rgba(128, 128, 128, 0.07); }
+.zone-opening { fill: rgba(179, 38, 30, 0.1); }
+.zone.selected { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 3; }
+.zone.outside { stroke: var(--warn); }
+.labels text.zone-label { font-size: 10px; fill: var(--muted); font-style: italic; }
 
 .stair { fill: var(--canvas); stroke: var(--ink); stroke-width: 1.2; cursor: move; }
 .stair.selected { stroke: var(--accent); stroke-width: 2.2; }

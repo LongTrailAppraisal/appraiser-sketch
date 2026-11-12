@@ -3,8 +3,8 @@
 Working name: **sketch** (final name TBD — must be generic and not trademarked).
 Status: draft 1, 2026-11-12. Phase 1 geometry module built and tested; first
 drawing screen working (see README). Stairs, templates and a theme
-selector done. Still to do in phase 1: zones editor (ceiling heights,
-openings), per-wall dimension control, workfile folder memory. Print/PDF
+selector done. Still to do in phase 1: per-wall dimension control,
+workfile folder memory. Print/PDF
 page and PNG done.
 
 ## 1. Purpose
@@ -195,6 +195,12 @@ unfinished living area per level for this.
   treads, walking-line arrow and UP/DN; draggable, rotatable. Flagged if drawn
   outside their area; never change area figures.
 - Theme: Auto (follows the system), Light or Dark; saved per browser.
+- Ceilings & openings panel: zones inside a living area tagged under 5',
+  5'–7', 7'+ or open to below. Add a strip along a wall (depth, and distance
+  in from the wall, for the 5'–7' band next to an under-5' strip) or type
+  any outline in the walls box; zones drag and snap to corners. The walls
+  box shows the ceiling breakdown; labels show counted and gross area.
+  Overlapping zones are flagged (the overlap would count twice).
 - Stair handles: a selected stair shows round handles at the end of each
   flight and on its side; dragging resizes to the nearest inch.
 - Labels: area labels drag freely (offset saved in the file, double-click
