@@ -137,3 +137,11 @@ describe("moving corners and walls with the mouse", () => {
     expect(moveCorners("R10 U5", o, [2], { x: 1, y: 0 })!.vectors).toBe("R10 R1'U5'");
   });
 });
+
+describe("short moves", () => {
+  it("write inches alone under a foot", () => {
+    expect(moveToken(0, -0.25)).toBe('D3"');
+    expect(parseVectors('D3"').path.segments[0]!.to).toEqual({ x: 0, y: -0.25 });
+    expect(moveToken(1, 0)).toBe("R1'");
+  });
+});

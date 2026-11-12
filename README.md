@@ -50,7 +50,7 @@ straight into the walls box. A length then an arrow key makes a wall (`30` ↑ �
 `U30`). `A` (or `CL`) closes the outline. With an area selected, drag a **wall** to slide it in or
 out (it stays square, in whole inches) or drag a **corner** to move it (it
 snaps to other corners and lines up with its neighbours; hold Alt for free
-movement); the walls text is rewritten to match. The inside angle shows at each corner of
+movement). A clicked corner moves 1" per arrow key (Shift: 1'); the walls text is rewritten to match. The inside angle shows at each corner of
 the selected area (square corners in grey; turn off with Show › Angles). Click a corner and choose
 **Delete wall** to remove the wall leaving it and redraw from that corner;
 Backspace on the drawing, or Delete last wall, steps back one wall at a time.
@@ -59,7 +59,8 @@ Decks, porches & patios, or type a custom one (and save it to My labels, kept
 in this browser; export or import the list from the ⚙ settings menu, which also
 holds the theme), and it is placed in the selected area; drag it into place,
 edit it, or press Delete to remove it. **+ Area** offers presets: next living floor, basement (below grade,
-unfinished, starting from the first-floor outline), finished basement,
+unfinished, blank; **Copy walls from** on the Area panel starts any empty area
+from another area's outline), finished basement,
 finished attic, garage, carport, porch, deck, patio, breezeway. **Copy as** on the Area panel copies
 the outline (with its stairs and ceiling zones) as a new area, either exactly or
 as one of the presets (basement, next floor, garage…). **Copy to** on the Stairs

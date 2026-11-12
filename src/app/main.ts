@@ -634,6 +634,7 @@ function drawProps() {
   sprops.panel.classList.toggle("disabled", !found);
   if (!found) return;
   const { area, structure } = found;
+  $("copy-walls").classList.toggle("hidden", area.vectors.trim() !== "");
   sync(props.name, area.name);
   sync(props.kind, area.kind);
   sync(props.level, area.level);
@@ -1174,7 +1175,9 @@ function drawVectorBar() {
   const actions: string[] = [];
   const cornerHere = activeCorner?.area === r.area.id ? activeCorner.index : null;
   if (sh.closure.closed && cornerHere !== null) {
-    actions.push(`Corner ${cornerHere + 1}: <button class="inline" data-action="delete">Delete wall</button> leaving this corner (opens the outline here; press again to keep going back)`);
+    actions.push(
+      `Corner ${cornerHere + 1}: arrow keys move it 1" (Shift: 1'). <button class="inline" data-action="delete">Delete wall</button> leaving this corner (opens the outline here; press again to keep going back)`,
+    );
   } else if (sh.closure.closed) {
     actions.push(`<span class="hint">Click a corner to delete the wall leaving it, or Backspace on the drawing removes the last wall.</span>`);
   } else if (sh.path.segments.length > 0) {
@@ -1188,6 +1191,26 @@ function drawVectorBar() {
     zoneBreakdown(r) +
     `<div class="actions">${actions.join(" ")}</div>` +
     (problems.length ? `<ul>${problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "");
+}
+
+/** The picked corner, if it belongs to the selected area. */
+function cornerToNudge(): { area: string; index: number } | null {
+  const sel = store.state.selection;
+  return activeCorner && sel?.area === activeCorner.area && !sel.stair && !sel.zone ? activeCorner : null;
+}
+
+function nudgeCorner(dir: "up" | "down" | "left" | "right", step: number) {
+  const c = cornerToNudge();
+  const f = findArea(store.state.sketch, store.state.selection);
+  if (!c || !f) return;
+  const d = { up: { x: 0, y: step }, down: { x: 0, y: -step }, left: { x: -step, y: 0 }, right: { x: step, y: 0 } }[dir];
+  const r = moveCorners(f.area.vectors, f.area.origin, [c.index], d);
+  if (!r) return;
+  // Held or repeated presses on one corner are a single undo step.
+  editArea((a) => {
+    a.vectors = r.vectors;
+    a.origin = r.origin;
+  }, `nudge-${c.area}-${c.index}`);
 }
 
 /** Delete the wall leaving the picked corner (closed outline) or the last wall, stepping the pen back. */
@@ -1627,11 +1650,6 @@ interface AreaPreset {
   make(s: Structure): Partial<Area>;
 }
 
-/** Outline of the structure's main above-grade floor, to start a basement from. */
-function mainFloor(s: Structure): Area | undefined {
-  return s.areas.find((a) => a.kind === "living" && a.grade === "above" && a.level === "1" && a.vectors.trim() !== "");
-}
-
 const AREA_PRESETS: (AreaPreset | "sep")[] = [
   {
     id: "floor",
@@ -1646,8 +1664,8 @@ const AREA_PRESETS: (AreaPreset | "sep")[] = [
   {
     id: "basement",
     label: "Basement (unfinished)",
-    hint: "below grade; copies the first floor outline",
-    make: (s) => ({ name: "Basement", level: "basement", grade: "below", finished: false, vectors: mainFloor(s)?.vectors ?? "" }),
+    hint: "below grade, unfinished",
+    make: () => ({ name: "Basement", level: "basement", grade: "below", finished: false }),
   },
   {
     id: "basement-fin",
@@ -1747,6 +1765,32 @@ $("copy-area-list").addEventListener("click", (e) => {
   props.name.focus();
   props.name.select();
   say("Copied: set its name, type and level, then edit the walls if they differ");
+});
+
+// ---------- start an area from another's walls ----------
+
+dropMenu("copy-walls", "copy-walls-list", () => {
+  const sel = store.state.selection;
+  const items: string[] = [];
+  for (const s of store.state.sketch.structures) {
+    for (const a of s.areas) {
+      if (a.id === sel?.area || a.vectors.trim() === "") continue;
+      const sf = result.structures.flatMap((x) => x.areas).find((x) => x.area.id === a.id)?.shape.area ?? 0;
+      items.push(`<button data-walls-from="${esc(a.id)}">${esc(a.name)}<small>${esc(s.name)} · ${formatSqFt(sf)} sf</small></button>`);
+    }
+  }
+  $("copy-walls-list").innerHTML = items.join("") || `<small class="muted" style="padding:4px 8px">No other area has walls yet</small>`;
+});
+
+$("copy-walls-list").addEventListener("click", (e) => {
+  const fromId = (e.target as Element).closest("[data-walls-from]")?.getAttribute("data-walls-from");
+  const sel = store.state.selection;
+  if (!fromId || !sel) return;
+  $<HTMLDetailsElement>("copy-walls").open = false;
+  const src = store.state.sketch.structures.flatMap((s) => s.areas).find((a) => a.id === fromId);
+  if (!src) return;
+  editArea((a) => (a.vectors = src.vectors));
+  say(`Walls copied from ${src.name} — edit any that differ`);
 });
 
 // ---------- copy a stair ----------
@@ -1960,6 +2004,10 @@ document.addEventListener("keydown", (e) => {
     fit();
   } else if (!mod && !e.altKey && k === "t" && document.activeElement === canvas && store.state.selection?.stair) {
     rotateStair();
+  } else if (!mod && !e.altKey && document.activeElement === canvas && e.key in ARROWS && cornerToNudge()) {
+    // A picked corner: arrows move it 1", Shift+arrow 1'.
+    e.preventDefault();
+    nudgeCorner(ARROWS[e.key]!, e.shiftKey ? 1 : 1 / 12);
   } else if (!mod && !e.altKey && !e.shiftKey && document.activeElement === canvas && e.key in ARROWS) {
     if (arrowIntoWalls(e.key, true)) {
       e.preventDefault();

@@ -132,7 +132,7 @@ button.link:disabled { color: var(--muted); }
 .panel.collapsed > :not(h2):not(.panel-head) { display: none; }
 .panel.collapsed h2 { margin-bottom: 0; }
 .add-row { align-items: center; }
-button.hidden { display: none; }
+button.hidden, .add-menu.hidden { display: none; }
 .add-row .muted { color: var(--muted); font-size: 12px; }
 .panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 8px; }
 .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; flex-wrap: wrap; }

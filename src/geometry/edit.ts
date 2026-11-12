@@ -4,12 +4,14 @@
  */
 
 import { closure, type Point } from "./path.js";
-import { formatFeetInches } from "./units.js";
+import { formatFeetInches as fmt } from "./units.js";
 import { parseVectors } from "./vectors.js";
 
 /** A move token for a wall of (dx, dy) feet, e.g. "R24'", "U30'6\"" or "R10'U5'". */
 export function moveToken(dx: number, dy: number): string {
   const tol = 1 / 96;
+  // Under a foot reads better as inches alone: 3" rather than 0'3".
+  const formatFeetInches = (v: number) => fmt(v).replace(/^0'(?=\d)/, "");
   const h = Math.abs(dx) > tol ? `${dx > 0 ? "R" : "L"}${formatFeetInches(Math.abs(dx))}` : "";
   const v = Math.abs(dy) > tol ? `${dy > 0 ? "U" : "D"}${formatFeetInches(Math.abs(dy))}` : "";
   return h + v;
