@@ -145,3 +145,32 @@ describe("short moves", () => {
     expect(moveToken(1, 0)).toBe("R1'");
   });
 });
+
+describe("adjust the last wall with arrows", async () => {
+  const { adjustLastWall, setLengthStyle, formatLength } = await import("../src/geometry/index.js");
+  const inch = 1 / 12;
+  it("lengthens and shortens by an inch", () => {
+    expect(adjustLastWall("R24 ", 4, "right", inch)).toEqual({ text: "R24'1\" ", caret: 7 });
+    expect(adjustLastWall("R24 ", 4, "left", inch)!.text).toBe("R23'11\" ");
+    expect(adjustLastWall("R24 U30'1\" ", 11, "down", inch)!.text).toBe("R24 U30' ");
+    expect(adjustLastWall("U8\" ", 4, "down", inch)!.text).toBe('U7" ');
+  });
+  it("ignores crosswise arrows, diagonals and a wall shrinking to nothing", () => {
+    expect(adjustLastWall("R24 ", 4, "up", inch)).toBeNull();
+    expect(adjustLastWall("R10U5 ", 6, "right", inch)).toBeNull();
+    expect(adjustLastWall('R1" ', 4, "left", inch)).toBeNull();
+    expect(adjustLastWall("", 0, "left", inch)).toBeNull();
+  });
+  it("works in decimal feet", () => {
+    setLengthStyle("decimal");
+    try {
+      expect(formatLength(24.5)).toBe("24.5'");
+      expect(formatLength(24 + 1 / 12)).toBe("24.08'");
+      expect(adjustLastWall("R24 ", 4, "right", 0.1)!.text).toBe("R24.1' ");
+      expect(moveToken(0, -0.25)).toBe("D0.25'");
+      expect(parseVectors("R24.1' U30").path.segments[0]!.to.x).toBeCloseTo(24.1, 9);
+    } finally {
+      setLengthStyle("ftin");
+    }
+  });
+});

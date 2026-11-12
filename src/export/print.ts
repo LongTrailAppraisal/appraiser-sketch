@@ -7,7 +7,7 @@
 import {
   BUCKETS,
   BUCKET_LABELS,
-  formatFeetInches,
+  formatLength,
   formatSqFt,
   type AreaResult,
   type SketchResult,
@@ -26,7 +26,7 @@ export function areaFormula(r: AreaResult): string {
   if (!axis) return "";
   const w = Math.max(...d.map((v) => Math.abs(v.x)));
   const h = Math.max(...d.map((v) => Math.abs(v.y)));
-  return `${formatFeetInches(w)} × ${formatFeetInches(h)}`;
+  return `${formatLength(w)} × ${formatLength(h)}`;
 }
 
 const KIND_LABELS: Record<string, string> = {

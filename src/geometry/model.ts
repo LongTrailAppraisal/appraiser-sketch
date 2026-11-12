@@ -27,7 +27,7 @@ import {
   type Point,
 } from "./path.js";
 import { stairDrawing, type Stair } from "./stairs.js";
-import { formatFeetInches } from "./units.js";
+import { formatLength } from "./units.js";
 import { parseVectors, type VectorError } from "./vectors.js";
 
 export const FORMAT_VERSION = 1;
@@ -202,8 +202,8 @@ export interface AreaResult {
 export function closingMove(dx: number, dy: number): string {
   const parts: string[] = [];
   const tol = 1 / 24; // under half an inch rounds to nothing
-  if (Math.abs(dx) >= tol) parts.push(`${dx > 0 ? "R" : "L"}${formatFeetInches(Math.abs(dx))}`);
-  if (Math.abs(dy) >= tol) parts.push(`${dy > 0 ? "U" : "D"}${formatFeetInches(Math.abs(dy))}`);
+  if (Math.abs(dx) >= tol) parts.push(`${dx > 0 ? "R" : "L"}${formatLength(Math.abs(dx))}`);
+  if (Math.abs(dy) >= tol) parts.push(`${dy > 0 ? "U" : "D"}${formatLength(Math.abs(dy))}`);
   return parts.join(" ") || "under 1/2\"";
 }
 
@@ -266,7 +266,7 @@ export function computeArea(area: Area, opts: { ansi?: boolean } = {}): AreaResu
   for (const e of shape.errors) problems.push(`"${e.text}": ${e.message}`);
   if (!shape.closure.closed && shape.path.segments.length > 0) {
     problems.push(
-      `outline does not close: misses the start by ${formatFeetInches(shape.closure.distance)} ` +
+      `outline does not close: misses the start by ${formatLength(shape.closure.distance)} ` +
         `(${closingMove(shape.closure.dx, shape.closure.dy)} to close); area assumes a straight closing wall`,
     );
   }

@@ -5,7 +5,7 @@
  */
 
 import type { AreaKind } from "./ansi.js";
-import { formatFeetInches } from "./units.js";
+import { formatLength } from "./units.js";
 
 export interface TemplateParam {
   key: string;
@@ -23,7 +23,7 @@ export interface Template {
   build(p: Record<string, number>): string;
 }
 
-const f = formatFeetInches;
+const f = formatLength;
 
 export const TEMPLATES: Template[] = [
   {

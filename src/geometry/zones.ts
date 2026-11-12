@@ -6,7 +6,7 @@
 
 import type { CeilingBand } from "./ansi.js";
 import type { Bounds, Point } from "./path.js";
-import { formatFeetInches } from "./units.js";
+import { formatLength } from "./units.js";
 
 export type ZoneBand = CeilingBand | "opening";
 
@@ -26,7 +26,7 @@ export type Side = "north" | "south" | "east" | "west";
  * next to an under-5' strip).
  */
 export function stripZone(b: Bounds, side: Side, depth: number, inset = 0): { origin: Point; vectors: string } {
-  const f = formatFeetInches;
+  const f = formatLength;
   const w = b.maxX - b.minX;
   const h = b.maxY - b.minY;
   switch (side) {

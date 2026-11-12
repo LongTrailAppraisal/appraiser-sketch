@@ -6,7 +6,7 @@
 import { cornerAngles, formatAngle,
   arcGeometry,
   flatten,
-  formatFeetInches,
+  formatLength,
   formatSqFt,
   orientation,
   signedPolygonArea,
@@ -100,7 +100,7 @@ function dimensionLabels(r: AreaResult, v: View): string {
     let deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
     if (deg > 90) deg -= 180;
     if (deg < -90) deg += 180;
-    const text = formatFeetInches(wl) + (seg.kind === "arc" ? ` ⌒${formatFeetInches(Math.abs(seg.sagitta))}` : "");
+    const text = formatLength(wl) + (seg.kind === "arc" ? ` ⌒${formatLength(Math.abs(seg.sagitta))}` : "");
     out.push(
       `<text class="dim" font-size="${fontPx}" x="${n(p.x)}" y="${n(p.y)}" transform="rotate(${deg.toFixed(1)} ${n(p.x)} ${n(p.y)})">${esc(text)}</text>`,
     );

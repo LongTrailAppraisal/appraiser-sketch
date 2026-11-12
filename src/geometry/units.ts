@@ -50,6 +50,32 @@ export function formatFeetInches(feet: number): string {
   return totalInches === 0 ? `${sign}${ft}'` : `${sign}${ft}'${totalInches}"`;
 }
 
+/** How lengths are shown and written: feet-inches (24'6") or decimal feet (24.5'). */
+export type LengthStyle = "ftin" | "decimal";
+let style: LengthStyle = "ftin";
+
+export function setLengthStyle(s: LengthStyle): void {
+  style = s;
+}
+export function lengthStyle(): LengthStyle {
+  return style;
+}
+/** The arrow-key step: 1 inch, or a tenth of a foot. */
+export function smallStep(): number {
+  return style === "decimal" ? 0.1 : 1 / 12;
+}
+
+/** Decimal feet to two places, trimmed: 24.5 -> 24.5', 24.0833 -> 24.08', 24 -> 24'. */
+export function formatDecimalFeet(feet: number): string {
+  const v = roundTo(feet, 2);
+  return `${Number.isInteger(v) ? v.toFixed(0) : String(v)}'`;
+}
+
+/** A length in the chosen style. */
+export function formatLength(feet: number): string {
+  return style === "decimal" ? formatDecimalFeet(feet) : formatFeetInches(feet);
+}
+
 /** Round to a number of decimal places without binary-float artifacts in typical sizes. */
 export function roundTo(value: number, places: number): number {
   const f = 10 ** places;

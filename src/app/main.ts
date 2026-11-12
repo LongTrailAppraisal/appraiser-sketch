@@ -6,7 +6,7 @@ import {
   closingMove,
   computeSketch,
   flatten,
-  formatFeetInches,
+  formatLength,
   formatSqFt,
   parseLength,
   type AreaKind,
@@ -32,6 +32,11 @@ import {
   closeOutline,
   deleteWall,
   moveCorners,
+  adjustLastWall,
+  smallStep,
+  lengthStyle,
+  setLengthStyle,
+  type LengthStyle,
   corners as areaCorners,
   parseVectors,
   type AreaResult,
@@ -51,6 +56,15 @@ import { FileManager, SketchFileError, download, loadDraft, saveDraft } from "./
 import { exportLabels, mergeLabels, parseLabelsFile } from "./labels.js";
 import { centroid, renderSketch, toWorld, type View } from "./render.js";
 import { Store, findArea, newArea, newId, newSketch, newStructure, type Selection } from "./store.js";
+
+// Length style (feet-inches or decimal feet), a per-viewer preference; set before anything is drawn.
+const UNITS_KEY = "sketch:units";
+try {
+  const u = localStorage.getItem(UNITS_KEY);
+  if (u === "decimal" || u === "ftin") setLengthStyle(u);
+} catch {
+  /* storage unavailable */
+}
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -626,7 +640,7 @@ function syncCheck(el: HTMLInputElement, value: boolean) {
   if (el.checked !== value) el.checked = value;
 }
 
-const fmtCoord = (v: number) => (v < 0 ? `-${formatFeetInches(-v)}` : formatFeetInches(v));
+const fmtCoord = (v: number) => (v < 0 ? `-${formatLength(-v)}` : formatLength(v));
 
 function drawProps() {
   const found = findArea(store.state.sketch, store.state.selection);
@@ -792,10 +806,10 @@ function drawStairs() {
   stairs.form.classList.toggle("one-flight", st.type === "straight");
   stairs.form.classList.toggle("no-turn", st.type === "straight" || st.type === "landing");
   sync(stairs.type, st.type);
-  sync(stairs.width, formatFeetInches(st.width));
+  sync(stairs.width, formatLength(st.width));
   sync(stairs.dir, st.direction);
-  sync(stairs.run1, formatFeetInches(st.run1));
-  sync(stairs.run2, formatFeetInches(st.run2));
+  sync(stairs.run1, formatLength(st.run1));
+  sync(stairs.run2, formatLength(st.run2));
   sync(stairs.turn, st.turn);
   sync(stairs.rot, String(((st.rotation % 360) + 360) % 360));
   sync(stairs.x, fmtCoord(st.origin.x));
@@ -1083,16 +1097,47 @@ const ARROWS: Record<string, "up" | "down" | "left" | "right"> = {
 };
 
 /** "30" then an arrow key → "U30 ". Returns true if it handled the key. */
-function arrowIntoWalls(key: string, atEnd: boolean): boolean {
+/**
+ * After an arrow key makes a wall, arrows along it lengthen or shorten that
+ * wall one step at a time until Enter (or any typing) moves on. Holds the
+ * area it applies to.
+ */
+let adjusting: string | null = null;
+/** Which area or zone the walls box is showing. */
+let vectorsFor = "";
+
+function arrowIntoWalls(key: string, atEnd: boolean, shift = false): boolean {
   const dir = ARROWS[key];
   if (!dir || vectors.disabled) return false;
   const caret = atEnd ? vectors.value.length : (vectors.selectionStart ?? vectors.value.length);
   if (!atEnd && vectors.selectionStart !== vectors.selectionEnd) return false;
-  const r = applyArrow(vectors.value, caret, dir);
+  const area = store.state.selection?.area ?? null;
+  let r = shift ? null : applyArrow(vectors.value, caret, dir);
+  if (r) {
+    adjusting = area;
+  } else if (adjusting && adjusting === area) {
+    r = adjustLastWall(vectors.value, caret, dir, shift ? 1 : smallStep());
+    if (!r) return true; // crosswise arrow while adjusting: ignore rather than move the caret
+  }
   if (!r) return false;
   vectors.value = r.text;
   vectors.setSelectionRange(r.caret, r.caret);
-  vectors.dispatchEvent(new Event("input"));
+  vectors.dispatchEvent(new Event("input", { bubbles: false }));
+  // The input handler clears adjusting for typed edits; keep it for ours.
+  adjusting = area;
+  drawVectorBar();
+  return true;
+}
+
+/** Enter while adjusting: done with this wall. */
+function endAdjust(): boolean {
+  if (!adjusting) return false;
+  adjusting = null;
+  if (!/\s$/.test(vectors.value) && vectors.value !== "") {
+    vectors.value += " ";
+    vectors.dispatchEvent(new Event("input"));
+  }
+  drawVectorBar();
   return true;
 }
 
@@ -1110,8 +1155,16 @@ function closeKeyIntoWalls(atEnd: boolean): boolean {
 
 vectors.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (!e.shiftKey && arrowIntoWalls(e.key, false)) e.preventDefault();
-  else if (e.key.toLowerCase() === "a" && closeKeyIntoWalls(false)) e.preventDefault();
+  if (e.key in ARROWS) {
+    if (arrowIntoWalls(e.key, false, e.shiftKey)) e.preventDefault();
+    return;
+  }
+  if (e.key === "Enter" && endAdjust()) {
+    e.preventDefault();
+    return;
+  }
+  if (e.key !== "Shift") adjusting = null; // typing moves on
+  if (e.key.toLowerCase() === "a" && closeKeyIntoWalls(false)) e.preventDefault();
 });
 
 const vectorLabel = document.querySelector<HTMLLabelElement>(".vector-label")!;
@@ -1142,7 +1195,16 @@ function drawVectorBar() {
   if (!r) return;
   const zr = sel?.zone ? r.zones.find((z) => z.zone.id === sel.zone) : undefined;
   vectorLabel.textContent = zr ? "Zone" : "Walls";
-  sync(vectors, zr ? zr.zone.vectors : found.area.vectors);
+  // Always refresh when the box switches to another area or zone, even while it has focus,
+  // so one area's text can never be typed into another.
+  const showing = zr ? `zone:${zr.zone.id}` : `area:${found.area.id}`;
+  if (showing !== vectorsFor) {
+    vectorsFor = showing;
+    vectors.value = zr ? zr.zone.vectors : found.area.vectors;
+    adjusting = null;
+  } else {
+    sync(vectors, zr ? zr.zone.vectors : found.area.vectors);
+  }
   if (zr) {
     const band = ZONE_BANDS.find((b) => b.value === zr.zone.band)?.label ?? zr.zone.band;
     const bits = [
@@ -1167,16 +1229,20 @@ function drawVectorBar() {
   if (sh.closure.closed) parts.push(`<span class="ok">✓ closed</span>`);
   else
     parts.push(
-      `<span class="bad">open: misses the start by ${formatFeetInches(sh.closure.distance)} ` +
+      `<span class="bad">open: misses the start by ${formatLength(sh.closure.distance)} ` +
         `(${closingMove(sh.closure.dx, sh.closure.dy)} to close)</span>`,
     );
-  parts.push(`${formatSqFt(sh.area)} sf`, `perimeter ${formatFeetInches(sh.perimeter)}`);
+  parts.push(`${formatSqFt(sh.area)} sf`, `perimeter ${formatLength(sh.perimeter)}`);
   if (r.ansi.bucket !== "excluded" || r.ansi.counted > 0) parts.push(`→ ${BUCKET_LABELS[r.ansi.bucket]} ${formatSqFt(r.ansi.counted)} sf`);
   const actions: string[] = [];
+  if (adjusting === r.area.id && sh.path.segments.length > 0) {
+    const unit = lengthStyle() === "decimal" ? "0.1'" : '1"';
+    actions.push(`<span class="ok">Adjusting the last wall:</span> arrows along it lengthen or shorten it ${unit} (Shift: 1'); <b>Enter</b> for the next wall.`);
+  }
   const cornerHere = activeCorner?.area === r.area.id ? activeCorner.index : null;
   if (sh.closure.closed && cornerHere !== null) {
     actions.push(
-      `Corner ${cornerHere + 1}: arrow keys move it 1" (Shift: 1'). <button class="inline" data-action="delete">Delete wall</button> leaving this corner (opens the outline here; press again to keep going back)`,
+      `Corner ${cornerHere + 1}: arrow keys move it ${lengthStyle() === "decimal" ? "0.1'" : '1"'} (Shift: 1'). <button class="inline" data-action="delete">Delete wall</button> leaving this corner (opens the outline here; press again to keep going back)`,
     );
   } else if (sh.closure.closed) {
     actions.push(`<span class="hint">Click a corner to delete the wall leaving it, or Backspace on the drawing removes the last wall.</span>`);
@@ -1260,7 +1326,7 @@ tpl.select.innerHTML = TEMPLATES.map((t) => `<option value="${t.id}">${esc(t.lab
 function drawTemplateParams() {
   const t = TEMPLATES.find((x) => x.id === tpl.select.value) ?? TEMPLATES[0]!;
   tpl.params.innerHTML = t.params
-    .map((p) => `<label>${esc(p.label)} <input type="text" inputmode="decimal" data-key="${p.key}" value="${esc(formatFeetInches(p.value))}"/></label>`)
+    .map((p) => `<label>${esc(p.label)} <input type="text" inputmode="decimal" data-key="${p.key}" value="${esc(formatLength(p.value))}"/></label>`)
     .join("");
   tpl.msg.textContent = "";
 }
@@ -1438,6 +1504,20 @@ importLabelsFile.addEventListener("change", async () => {
   } catch (err) {
     say(err instanceof Error ? err.message : "Couldn't read that file");
   }
+});
+
+const unitsSelect = $<HTMLSelectElement>("units");
+unitsSelect.value = lengthStyle();
+unitsSelect.addEventListener("change", () => {
+  const u = unitsSelect.value as LengthStyle;
+  setLengthStyle(u);
+  try {
+    localStorage.setItem(UNITS_KEY, u);
+  } catch {
+    /* storage unavailable */
+  }
+  redraw();
+  say(u === "decimal" ? "Lengths in decimal feet (walls you already typed stay as typed)" : "Lengths in feet-inches (walls you already typed stay as typed)");
 });
 
 // Close the settings menu when clicking elsewhere.
@@ -2007,9 +2087,11 @@ document.addEventListener("keydown", (e) => {
   } else if (!mod && !e.altKey && document.activeElement === canvas && e.key in ARROWS && cornerToNudge()) {
     // A picked corner: arrows move it 1", Shift+arrow 1'.
     e.preventDefault();
-    nudgeCorner(ARROWS[e.key]!, e.shiftKey ? 1 : 1 / 12);
-  } else if (!mod && !e.altKey && !e.shiftKey && document.activeElement === canvas && e.key in ARROWS) {
-    if (arrowIntoWalls(e.key, true)) {
+    nudgeCorner(ARROWS[e.key]!, e.shiftKey ? 1 : smallStep());
+  } else if (!mod && !e.altKey && document.activeElement === canvas && e.key === "Enter" && endAdjust()) {
+    e.preventDefault();
+  } else if (!mod && !e.altKey && document.activeElement === canvas && e.key in ARROWS) {
+    if (arrowIntoWalls(e.key, true, e.shiftKey)) {
       e.preventDefault();
       vectors.focus();
     }

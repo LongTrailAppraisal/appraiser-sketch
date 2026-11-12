@@ -4,14 +4,14 @@
  */
 
 import { closure, type Point } from "./path.js";
-import { formatFeetInches as fmt } from "./units.js";
+import { formatLength, lengthStyle, parseLength } from "./units.js";
 import { parseVectors } from "./vectors.js";
 
 /** A move token for a wall of (dx, dy) feet, e.g. "R24'", "U30'6\"" or "R10'U5'". */
 export function moveToken(dx: number, dy: number): string {
   const tol = 1 / 96;
   // Under a foot reads better as inches alone: 3" rather than 0'3".
-  const formatFeetInches = (v: number) => fmt(v).replace(/^0'(?=\d)/, "");
+  const formatFeetInches = (v: number) => (lengthStyle() === "ftin" ? formatLength(v).replace(/^0'(?=\d)/, "") : formatLength(v));
   const h = Math.abs(dx) > tol ? `${dx > 0 ? "R" : "L"}${formatFeetInches(Math.abs(dx))}` : "";
   const v = Math.abs(dy) > tol ? `${dy > 0 ? "U" : "D"}${formatFeetInches(Math.abs(dy))}` : "";
   return h + v;
@@ -145,4 +145,34 @@ export function moveCorners(vectors: string, origin: Point, cornerIdx: number[],
     tokens.push(t + arc);
   });
   return { vectors: tokens.join(" "), origin: newOrigin };
+}
+
+/**
+ * Lengthen or shorten the wall just before the caret ("R24 " → "R24'1\" ")
+ * with an arrow along it: the wall's own direction adds `step`, the opposite
+ * takes it away. Only plain straight moves (R/L/U/D + a length); returns null
+ * for anything else, a crosswise arrow, or a wall that would shrink to nothing.
+ */
+export function adjustLastWall(
+  text: string,
+  caret: number,
+  dir: "up" | "down" | "left" | "right",
+  step: number,
+): { text: string; caret: number } | null {
+  const before = text.slice(0, caret);
+  const m = /(^|[\s,])([UDLRudlr])([0-9][^\s,]*)(\s*)$/.exec(before);
+  if (!m) return null;
+  const letter = m[2]!.toUpperCase();
+  const len = parseLength(m[3]!);
+  if (len === null) return null;
+  const axis = letter === "L" || letter === "R" ? "h" : "v";
+  if ((axis === "h") !== (dir === "left" || dir === "right")) return null;
+  const same = { up: "U", down: "D", left: "L", right: "R" }[dir] === letter;
+  const next = Math.round((len + (same ? step : -step)) * 9600) / 9600;
+  if (next < step / 2) return null;
+  const tok = `${letter}${moveToken(next, 0).slice(1)}`;
+  const start = before.length - m[2]!.length - m[3]!.length - m[4]!.length;
+  const after = text.slice(caret).replace(/^ /, "");
+  const insert = `${tok} `;
+  return { text: text.slice(0, start) + insert + after, caret: start + insert.length };
 }
