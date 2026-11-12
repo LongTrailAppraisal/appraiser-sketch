@@ -47,3 +47,26 @@ describe("copy stair to another floor", () => {
     expect(["attic", "2", "1", "basement"].sort((a, b) => levelRank(a) - levelRank(b))).toEqual(["basement", "1", "2", "attic"]);
   });
 });
+
+describe("stair dropped in another area", async () => {
+  const { stairHome, defaultStair } = await import("../src/geometry/index.js");
+  const a = (id: string, kind: Area["kind"], origin: { x: number; y: number }, vectors: string): Area => ({
+    id, name: id, kind, grade: "above", finished: kind === "living", level: "1", connected: true, ceiling: "full",
+    origin, vectors, zones: [], stairs: [],
+  });
+  const areas = [
+    a("deck", "deck", { x: 30, y: 0 }, "R16 D12 L16 U12"),
+    a("first", "living", { x: 0, y: 0 }, "R24 U24 L24 D24"),
+    a("garage", "garage", { x: -24, y: 0 }, "R24 U24 L24 D24"),
+  ];
+  it("moves to the area that holds the whole stair", () => {
+    expect(stairHome(areas, "deck", defaultStair({ origin: { x: 2, y: 2 }, run1: 10 }))).toBe("first");
+    expect(stairHome(areas, "deck", defaultStair({ origin: { x: -10, y: 2 }, run1: 10 }))).toBe("garage");
+  });
+  it("stays put when still inside its own area, or when nothing holds it", () => {
+    expect(stairHome(areas, "first", defaultStair({ origin: { x: 2, y: 2 }, run1: 10 }))).toBeNull();
+    expect(stairHome(areas, "deck", defaultStair({ origin: { x: 60, y: 60 } }))).toBeNull();
+    // Straddling two areas: neither holds all of it.
+    expect(stairHome(areas, "deck", defaultStair({ origin: { x: -1, y: 2 } }))).toBeNull();
+  });
+});

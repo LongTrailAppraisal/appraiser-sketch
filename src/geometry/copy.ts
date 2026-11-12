@@ -1,8 +1,8 @@
 /** Copying areas and stairs between floors. */
 
-import type { Area } from "./model.js";
-import type { Point } from "./path.js";
-import type { Stair } from "./stairs.js";
+import { computeShape, containsPoint, type Area } from "./model.js";
+import { area as pathArea, flatten, type Point } from "./path.js";
+import { stairDrawing, type Stair } from "./stairs.js";
 
 /** Order of levels from the bottom: basement, 1, 2, … then attic. */
 export function levelRank(level: string): number {
@@ -42,4 +42,25 @@ export function copyStairTo(st: Stair, from: Area, to: Area, id: string): Stair 
   const b = levelRank(to.level);
   const direction = to.id === from.id || a === b ? st.direction : b > a ? "down" : "up";
   return { ...structuredClone(st), id, origin: { x: to.origin.x + rel.x, y: to.origin.y + rel.y }, direction };
+}
+
+/**
+ * Which area a stair belongs in once it has been dragged: the area it was
+ * in if it is still inside that outline, otherwise another area of the same
+ * structure that holds the whole stair (a living area first, then the
+ * smallest). Null means leave it where it is.
+ */
+export function stairHome(areas: Area[], fromId: string, st: Stair): string | null {
+  const pts = stairDrawing(st).parts.flat();
+  const holds = (a: Area) => {
+    const outline = flatten(computeShape(a.vectors, a.origin).path);
+    return outline.length >= 3 && pts.every((p) => containsPoint(outline, p));
+  };
+  const from = areas.find((a) => a.id === fromId);
+  if (from && holds(from)) return null;
+  const size = (a: Area) => Math.abs(pathArea(computeShape(a.vectors, a.origin).path));
+  const best = areas
+    .filter((a) => a.id !== fromId && holds(a))
+    .sort((a, b) => Number(b.kind === "living") - Number(a.kind === "living") || size(a) - size(b))[0];
+  return best ? best.id : null;
 }

@@ -47,6 +47,7 @@ import {
   defaultStructureName,
   isDefaultStructureName,
   copyStairTo,
+  stairHome,
   type Side,
   type ZoneBand,
 } from "../geometry/index.js";
@@ -583,6 +584,30 @@ function endDrag() {
       const origin = snapMove([at], targets, at, at, false);
       editArea((a) => (a.origin = origin));
       vectors.focus();
+    }
+  }
+  // A stair dropped inside another area now belongs to that area (it moves with it and counts there).
+  if (drag?.kind === "move" && drag.sel.stair) {
+    const d = drag;
+    const struct = store.state.sketch.structures.find((s) => s.id === d.sel.structure);
+    const st = (findArea(store.state.sketch, d.sel)?.area.stairs ?? []).find((x) => x.id === d.sel.stair);
+    const moved = st && (st.origin.x !== d.origin.x || st.origin.y !== d.origin.y);
+    const home = struct && st && moved ? stairHome(struct.areas, d.sel.area, st) : null;
+    if (home && st) {
+      const to = struct!.areas.find((a) => a.id === home)!;
+      store.update(
+        (draft) => {
+          const s = draft.structures.find((x) => x.id === d.sel.structure)!;
+          const src = s.areas.find((a) => a.id === d.sel.area)!;
+          const dst = s.areas.find((a) => a.id === home)!;
+          const i = (src.stairs ?? []).findIndex((x) => x.id === st.id);
+          const [moving] = (src.stairs ?? []).splice(i, 1);
+          (dst.stairs ??= []).push(moving!);
+          return { structure: s.id, area: dst.id, stair: moving!.id };
+        },
+        { coalesce: d.key },
+      );
+      say(`Stair moved to ${to.name}`);
     }
   }
   const wasEdit = drag !== null && drag.kind !== "pan";
