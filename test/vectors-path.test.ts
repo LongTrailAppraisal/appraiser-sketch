@@ -50,6 +50,26 @@ describe("rectilinear outlines", () => {
   });
 });
 
+describe("notched outline with a sloping wall", () => {
+  // Re-entered from a past Total sketch (dimensions only). Total's breakdown:
+  // 16'2" x 29'2" + 30'10" x 26'8" + 1/2 x 25'10" x 2" + 5' x 2'10" = 1,310.07 sf.
+  const v = "R16'2\" D8'10\" R5 D2'10\" R25'10\"U2\" D26'10\" L30'10\" U9'2\" L16'2\" U29'2\"";
+
+  it("closes exactly", () => {
+    expect(closure(shape(v)).closed).toBe(true);
+  });
+
+  it("matches Total's area", () => {
+    const parts = (16 + 2 / 12) * (29 + 2 / 12) + (30 + 10 / 12) * (26 + 8 / 12) + 0.5 * (25 + 10 / 12) * (2 / 12) + 5 * (2 + 10 / 12);
+    expect(area(shape(v))).toBeCloseTo(parts, 9);
+    expect(area(shape(v))).toBeCloseTo(1310.07, 2);
+  });
+
+  it("does not cross itself", () => {
+    expect(selfIntersects(shape(v))).toBe(false);
+  });
+});
+
 describe("diagonals and angles", () => {
   it("run/rise diagonal: right triangle 10 x 10 = 50", () => {
     expect(area(shape("R10 U10 L10D10"))).toBeCloseTo(50, 9);
