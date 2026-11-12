@@ -90,6 +90,33 @@ function sketchBounds() {
   return b;
 }
 
+let autoFit = true;
+try {
+  autoFit = localStorage.getItem("sketch:autofit") !== "off";
+} catch {
+  /* storage unavailable */
+}
+const autoFitToggle = document.getElementById("auto-fit") as HTMLInputElement;
+autoFitToggle.checked = autoFit;
+
+function setAutoFit(on: boolean) {
+  if (autoFit === on) return;
+  autoFit = on;
+  autoFitToggle.checked = on;
+  try {
+    localStorage.setItem("sketch:autofit", on ? "on" : "off");
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** Zoomed or panned by hand: stop auto fitting so the view stays put. */
+function manualView() {
+  if (!autoFit) return;
+  setAutoFit(false);
+  say("Auto fit off — F or Fit to fit again");
+}
+
 function fit() {
   const b = sketchBounds();
   const { width, height } = size();
@@ -116,6 +143,7 @@ canvas.addEventListener(
     const w = toWorld(view, p);
     const scale = Math.min(200, Math.max(1, view.scale * Math.exp(-e.deltaY * 0.0015)));
     view = { scale, ox: p.x - w.x * scale, oy: p.y + w.y * scale };
+    manualView();
     drawCanvas();
   },
   { passive: false },
@@ -236,7 +264,10 @@ canvas.addEventListener("pointerdown", (e) => {
 canvas.addEventListener("pointermove", (e) => {
   if (!drag) return;
   if (drag.kind === "pan") {
-    if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 3) drag.moved = true;
+    if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 3) {
+      drag.moved = true;
+      manualView();
+    }
     view = { ...view, ox: drag.ox + e.clientX - drag.startX, oy: drag.oy + e.clientY - drag.startY };
     drawCanvas();
     return;
@@ -339,8 +370,10 @@ function endDrag() {
       vectors.focus();
     }
   }
+  const wasEdit = drag !== null && drag.kind !== "pan";
   drag = null;
   canvas.classList.remove("panning");
+  if (wasEdit && autoFit) fit();
   store.breakCoalesce();
 }
 canvas.addEventListener("pointerup", endDrag);
@@ -1280,7 +1313,10 @@ $("btn-save").addEventListener("click", () => void doSave(false));
 $("btn-save-as").addEventListener("click", () => void doSave(true));
 $("btn-undo").addEventListener("click", () => undo());
 $("btn-redo").addEventListener("click", () => redo());
-$("btn-fit").addEventListener("click", () => fit());
+$("btn-fit").addEventListener("click", () => {
+  setAutoFit(true);
+  fit();
+});
 
 $("btn-copy").addEventListener("click", async () => {
   const text = totalsText(result);
@@ -1320,6 +1356,7 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     void doOpen();
   } else if (!mod && k === "f" && document.activeElement === canvas) {
+    setAutoFit(true);
     fit();
   } else if (!mod && !e.altKey && k === "t" && document.activeElement === canvas && store.state.selection?.stair) {
     rotateStair();
@@ -1351,6 +1388,11 @@ if (!import.meta.env.DEV) {
 
 const gridToggle = $<HTMLInputElement>("show-grid");
 gridToggle.checked = showGrid;
+autoFitToggle.addEventListener("change", () => {
+  setAutoFit(autoFitToggle.checked);
+  if (autoFit) fit();
+});
+
 gridToggle.addEventListener("change", () => {
   showGrid = gridToggle.checked;
   try {
@@ -1382,7 +1424,9 @@ themeSelect.addEventListener("change", () => {
 let draftTimer = 0;
 function redraw() {
   result = computeSketch(store.state.sketch);
-  drawCanvas();
+  // Keep the whole sketch in view as walls are added (not mid-drag, which would make things jump).
+  if (autoFit && !drag) fit();
+  else drawCanvas();
   drawTree();
   drawProps();
   drawMeta();

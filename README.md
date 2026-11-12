@@ -49,7 +49,9 @@ F to fit. Click a stair to select it, then drag it or its round handles
 straight into the walls box. A length then an arrow key makes a wall (`30` ↑ →
 `U30`). `A` (or `CL`) closes the outline. Click a corner of a closed area and choose
 **Delete wall** to remove the wall leaving it and redraw from that corner;
-Backspace on the drawing, or Delete last wall, steps back one wall at a time. on an area with no walls yet, clicking the drawing
+Backspace on the drawing, or Delete last wall, steps back one wall at a time.
+**Auto fit** (toolbar) keeps the whole sketch centred and in view as you draw;
+zooming or panning by hand turns it off, and F or Fit turns it back on. on an area with no walls yet, clicking the drawing
 moves its start point there. Drag an area's label to move it,
 double-click to put it back. The toolbar's Show switches hide dimensions,
 labels or the grid; each area can also hide its own label or dimensions. Ctrl+Z / Ctrl+Y undo and redo, Ctrl+S save, Ctrl+O open.
