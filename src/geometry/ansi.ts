@@ -9,11 +9,18 @@ export type AreaKind = "living" | "garage" | "porch" | "deck" | "patio" | "carpo
 
 export type Grade = "above" | "below";
 
+/**
+ * Report buckets. The living buckets follow the six UAD 3.6 area fields
+ * (PROPERTY_UNIT_AREA): standard (ANSI) finished, non-standard finished and
+ * unfinished, above and below grade; plus not-connected finished area.
+ */
 export type Bucket =
   | "gla"
+  | "nonStandardAbove"
   | "finishedNotConnected"
   | "unfinishedAbove"
   | "finishedBelow"
+  | "nonStandardBelow"
   | "unfinishedBelow"
   | "garage"
   | "porch"
@@ -26,9 +33,11 @@ export type Bucket =
 
 export const BUCKETS: readonly Bucket[] = [
   "gla",
+  "nonStandardAbove",
   "finishedNotConnected",
   "unfinishedAbove",
   "finishedBelow",
+  "nonStandardBelow",
   "unfinishedBelow",
   "garage",
   "porch",
@@ -41,10 +50,12 @@ export const BUCKETS: readonly Bucket[] = [
 ];
 
 export const BUCKET_LABELS: Record<Bucket, string> = {
-  gla: "Finished above grade (GLA)",
+  gla: "Standard finished above grade (GLA)",
+  nonStandardAbove: "Non-standard finished above grade",
   finishedNotConnected: "Finished above grade, not connected",
   unfinishedAbove: "Unfinished above grade",
-  finishedBelow: "Finished below grade",
+  finishedBelow: "Standard finished below grade",
+  nonStandardBelow: "Non-standard finished below grade",
   unfinishedBelow: "Unfinished below grade",
   garage: "Garage",
   porch: "Porch",
@@ -174,9 +185,9 @@ export function classify(input: AnsiInput, opts: ClassifyOptions = {}): AnsiResu
   if (band.full + TOL < countable / 2) {
     warnings.push(
       `less than half of the area (${band.full.toFixed(1)} of ${countable.toFixed(1)} sf) has a 7' ceiling; ` +
-        "ANSI does not count it as finished",
+        "reported as non-standard finished area",
     );
-    return result(above ? "unfinishedAbove" : "unfinishedBelow", countable);
+    return result(above ? "nonStandardAbove" : "nonStandardBelow", countable);
   }
   return result(finishedBucket, countable);
 }
@@ -186,6 +197,15 @@ export type BucketTotals = Record<Bucket, number>;
 export function emptyTotals(): BucketTotals {
   return Object.fromEntries(BUCKETS.map((b) => [b, 0])) as BucketTotals;
 }
+
+/** Buckets that count as finished living area on a level. */
+export const FINISHED_BUCKETS: ReadonlySet<Bucket> = new Set<Bucket>([
+  "gla",
+  "nonStandardAbove",
+  "finishedNotConnected",
+  "finishedBelow",
+  "nonStandardBelow",
+]);
 
 /** Sum results by bucket, unrounded. */
 export function totalByBucket(results: Iterable<AnsiResult>): BucketTotals {

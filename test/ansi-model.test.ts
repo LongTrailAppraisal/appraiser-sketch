@@ -38,15 +38,16 @@ describe("ANSI classification", () => {
     expect(r.notCounted).toBe(100);
   });
 
-  it("sloped ceiling with under half at 7' is not finished area", () => {
+  it("sloped ceiling with under half at 7' is non-standard finished area", () => {
     const r = classify(living({ grossArea: 600, ceiling: "reduced", zones: [{ band: "full", area: 200 }] }));
-    expect(r.bucket).toBe("unfinishedAbove");
+    expect(r.bucket).toBe("nonStandardAbove");
     expect(r.counted).toBe(600);
     expect(r.warnings.join()).toMatch(/less than half/);
   });
 
-  it("flat ceiling under 7' is not finished area", () => {
-    expect(classify(living({ ceiling: "reduced" })).bucket).toBe("unfinishedAbove");
+  it("flat ceiling under 7' is non-standard finished area, above or below grade", () => {
+    expect(classify(living({ ceiling: "reduced" })).bucket).toBe("nonStandardAbove");
+    expect(classify(living({ ceiling: "reduced", grade: "below" })).bucket).toBe("nonStandardBelow");
   });
 
   it("all under 5' is excluded", () => {

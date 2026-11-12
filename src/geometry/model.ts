@@ -5,6 +5,7 @@
  */
 
 import {
+  FINISHED_BUCKETS,
   classify,
   roundTotals,
   totalByBucket,
@@ -180,9 +181,18 @@ export function computeArea(area: Area, opts: { ansi?: boolean } = {}): AreaResu
   return { area, shape, zones, ansi, problems };
 }
 
+/** Finished/unfinished living area on one level (UAD 3.6 LEVEL). Unrounded. */
+export interface LevelTotal {
+  level: string;
+  grade: Grade;
+  finished: number;
+  unfinished: number;
+}
+
 export interface StructureResult {
   structure: Structure;
   areas: AreaResult[];
+  levels: LevelTotal[];
   /** Unrounded bucket totals. */
   exact: BucketTotals;
   /** Whole-square-foot totals for the report. */
@@ -193,9 +203,19 @@ export interface StructureResult {
 export function computeStructure(structure: Structure, opts: { ansi?: boolean } = {}): StructureResult {
   const areas = structure.areas.map((a) => computeArea(a, opts));
   const exact = totalByBucket(areas.map((a) => a.ansi));
+  const levels = new Map<string, LevelTotal>();
+  for (const a of areas) {
+    if (a.area.kind !== "living" || a.ansi.bucket === "excluded") continue;
+    const key = `${a.area.grade}:${a.area.level}`;
+    const t = levels.get(key) ?? { level: a.area.level, grade: a.area.grade, finished: 0, unfinished: 0 };
+    if (FINISHED_BUCKETS.has(a.ansi.bucket)) t.finished += a.ansi.counted;
+    else t.unfinished += a.ansi.counted;
+    levels.set(key, t);
+  }
   return {
     structure,
     areas,
+    levels: [...levels.values()],
     exact,
     reported: roundTotals(exact),
     overrides: areas

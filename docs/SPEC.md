@@ -138,14 +138,29 @@ for non-ANSI GLA; exact comment code to verify).
 
 ### Report buckets (per structure)
 
-- Finished above grade (GLA)
-- Finished above grade, not connected
-- Unfinished above grade
-- Finished below grade
-- Unfinished below grade
-- Non-living, by kind: garage, porch, deck, patio, carport, breezeway, other
+The living buckets follow the six UAD 3.6 area fields, as found in the user's
+own UAD 3.6 MISMO XML (`PROPERTY_UNIT_AREA`):
 
-These will be mapped to the UAD 3.6 Area Breakdown fields once confirmed (§11).
+| Bucket | UAD 3.6 field |
+|---|---|
+| Standard finished above grade (GLA) | `UnitStandardAboveGradeFinishedAreaMeasure` |
+| Non-standard finished above grade | `UnitNonStandardAboveGradeFinishedAreaMeasure` |
+| Unfinished above grade | `UnitAboveGradeUnfinishedAreaMeasure` |
+| Standard finished below grade | `UnitStandardBelowGradeFinishedAreaMeasure` |
+| Non-standard finished below grade | `UnitNonStandardBelowGradeFinishedAreaMeasure` |
+| Unfinished below grade | `UnitBelowGradeUnfinishedAreaMeasure` |
+| Finished above grade, not connected | (see `NonContinuousFinishedAreaIndicator`) |
+| Garage / carport | `CarStorageAreaMeasure` |
+| Porch, deck, patio, breezeway, other | amenity areas (`AmenityAreaMeasure`) |
+
+Finished space that fails the ANSI ceiling test goes to **non-standard
+finished**, not unfinished (inferred from the field names; confirm in the GSE
+spec).
+
+Per level, UAD 3.6 also reports `LEVEL` with `LevelType` (LevelOne, LevelTwo,
+BelowGradeOne …), `GradeLevelType` (AboveGrade, FullyBelowGrade …),
+`AccessType`, and finished/unfinished area. The model totals finished and
+unfinished living area per level for this.
 
 ## 8. User interface (phase 1)
 
@@ -206,10 +221,11 @@ hand-calculated houses and the user's past sketches with known areas.
 ## 11. Open questions
 
 1. UAD 3.6: exactly when a floor plan (interior walls) is required vs a sketch,
-   and what the six Area Breakdown fields contain. Check Fannie Mae / Freddie
-   Mac documents directly; web sources disagree.
+   and the definition of "non-standard" finished area. The six field names
+   are known (§7). Check Fannie Mae / Freddie Mac documents directly.
 2. Fannie Mae non-ANSI comment requirement (exact wording/code).
 3. Reggora: any import route for sketch images or area data (user asking
    Reggora support); a sample finished report for field names.
 4. Final project name and license confirmation.
-5. Test houses: 2–3 past Total sketches with known areas.
+5. Test houses: three past jobs are in `test/real-houses.test.ts` (dimensions
+   only; sources in gitignored `test/fixtures/private/`).
