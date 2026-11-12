@@ -4,7 +4,8 @@ Working name: **sketch** (final name TBD — must be generic and not trademarked
 Status: draft 1, 2026-11-12. Phase 1 geometry module built and tested; first
 drawing screen working (see README). Stairs, templates and a theme
 selector done. Still to do in phase 1: zones editor (ceiling heights,
-openings), print/PDF, PNG, per-wall dimension control, workfile folder memory.
+openings), per-wall dimension control, workfile folder memory. Print/PDF
+page and PNG done.
 
 ## 1. Purpose
 

@@ -29,6 +29,10 @@
       <div class="group">
         <button id="btn-fit" title="Fit sketch to window (F)">Fit</button>
       </div>
+      <div class="group">
+        <button id="btn-print" title="Print the sketch page, or save it as PDF (Ctrl+P)">Print / PDF</button>
+        <button id="btn-png" title="Download the sketch as a PNG image">PNG</button>
+      </div>
       <div class="group show-group" title="What to show on the sketch">
         <span class="muted">Show</span>
         <label class="toggle" title="Wall dimensions (also on the printed sketch)"><input type="checkbox" id="show-dims" checked /> Dimensions</label>
@@ -215,6 +219,19 @@
 
       <aside class="totals">
         <section class="panel">
+          <h2>Report header</h2>
+          <div class="form">
+            <label>Property address <input id="m-subject" type="text" /></label>
+            <label>Borrower <input id="m-borrower" type="text" /></label>
+            <label>Lender/Client <input id="m-client" type="text" /></label>
+            <div class="pair">
+              <label>File number <input id="m-file" type="text" /></label>
+              <label>Date <input id="m-date" type="text" placeholder="MM/DD/YYYY" /></label>
+            </div>
+            <label>Appraiser <input id="m-appraiser" type="text" /></label>
+          </div>
+        </section>
+        <section class="panel">
           <div class="panel-head">
             <h2>Area table</h2>
             <button id="btn-copy" title="Copy the totals as plain text for pasting into the report">Copy totals</button>
@@ -224,6 +241,7 @@
       </aside>
     </main>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="print-root" aria-hidden="true"></div>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
 </html>

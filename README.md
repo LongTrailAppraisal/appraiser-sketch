@@ -8,8 +8,9 @@ tested, and the first drawing screen works: live drawing as you type, dimension
 labels, multiple areas and structures, drag with corner snapping, undo/redo,
 area table, copy totals, open/save `.sketch.json`, draft recovery, stairs
 (straight, landing, L, winder, U), templates (rectangle, L, bump-out, 45° bay,
-bow window, garage, deck), and an Auto/Light/Dark theme. Print/PDF and PNG
-are next. See `docs/SPEC.md`.
+bow window, garage, deck), an Auto/Light/Dark theme, and a print page (Print / PDF button or Ctrl+P:
+report header, the sketch fitted to the page, area table with totals) plus PNG
+download. See `docs/SPEC.md`.
 
 ## Vector entry
 

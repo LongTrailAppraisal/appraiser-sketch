@@ -26,7 +26,8 @@ import {
   checkTemplate,
 } from "../geometry/index.js";
 import { levelName, totalsText } from "../export/text.js";
-import { FileManager, SketchFileError, loadDraft, saveDraft } from "./files.js";
+import { printPageHtml, sketchPng } from "../export/print.js";
+import { FileManager, SketchFileError, download, loadDraft, saveDraft } from "./files.js";
 import { renderSketch, toWorld, type View } from "./render.js";
 import { Store, findArea, newArea, newId, newSketch, newStructure, type Selection } from "./store.js";
 
@@ -731,6 +732,61 @@ $("tpl-new").addEventListener("click", () => {
   fit();
 });
 
+// ---------- report header ----------
+
+type MetaKey = "subject" | "borrower" | "client" | "fileNumber" | "date" | "appraiser";
+const metaFields: [string, MetaKey][] = [
+  ["m-subject", "subject"],
+  ["m-borrower", "borrower"],
+  ["m-client", "client"],
+  ["m-file", "fileNumber"],
+  ["m-date", "date"],
+  ["m-appraiser", "appraiser"],
+];
+for (const [id, key] of metaFields) {
+  const el = $<HTMLInputElement>(id);
+  el.addEventListener("input", () =>
+    store.update(
+      (draft) => {
+        const v = el.value;
+        if (v.trim() === "") delete draft.meta[key];
+        else draft.meta[key] = v;
+      },
+      { coalesce: `meta-${key}` },
+    ),
+  );
+}
+function drawMeta() {
+  for (const [id, key] of metaFields) sync($<HTMLInputElement>(id), store.state.sketch.meta[key] ?? "");
+}
+
+// ---------- print and PNG ----------
+
+function printSketch() {
+  $("print-root").innerHTML = printPageHtml(result);
+  const img = $("print-root").querySelector("img");
+  const go = () => window.print();
+  if (img && !img.complete) img.addEventListener("load", go, { once: true });
+  else go();
+}
+$("btn-print").addEventListener("click", printSketch);
+
+function exportName(ext: string): string {
+  const m = store.state.sketch.meta;
+  const base = (files.name?.replace(/\.sketch\.json$|\.json$/i, "") || m.fileNumber || m.subject || "sketch").replace(/[^\w .-]+/g, "_").trim();
+  return `${base || "sketch"}.${ext}`;
+}
+
+$("btn-png").addEventListener("click", async () => {
+  try {
+    const blob = await sketchPng(result);
+    download(blob, exportName("png"));
+    say("PNG downloaded");
+  } catch {
+    say("Could not make the PNG");
+  }
+});
+
 // ---------- area table ----------
 
 const table = $<HTMLDivElement>("table");
@@ -955,6 +1011,9 @@ document.addEventListener("keydown", (e) => {
   } else if (mod && k === "s") {
     e.preventDefault();
     void doSave(e.shiftKey);
+  } else if (mod && k === "p") {
+    e.preventDefault();
+    printSketch();
   } else if (mod && k === "o") {
     e.preventDefault();
     void doOpen();
@@ -1009,6 +1068,7 @@ function redraw() {
   drawCanvas();
   drawTree();
   drawProps();
+  drawMeta();
   drawStairs();
   drawVectorBar();
   drawTable();
@@ -1038,4 +1098,4 @@ redraw();
 requestAnimationFrame(() => fit());
 
 // Exposed for debugging and automated checks.
-(window as unknown as { sketchApp: unknown }).sketchApp = { store, get result() { return result; } };
+(window as unknown as { sketchApp: unknown }).sketchApp = { store, get result() { return result; }, printHtml: () => printPageHtml(result) };
