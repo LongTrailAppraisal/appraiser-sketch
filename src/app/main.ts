@@ -114,7 +114,7 @@ canvas.addEventListener(
 );
 
 type Drag =
-  | { kind: "pan"; startX: number; startY: number; ox: number; oy: number }
+  | { kind: "pan"; startX: number; startY: number; ox: number; oy: number; at: Point; moved: boolean }
   | { kind: "move"; sel: Selection; start: Point; origin: Point; key: string }
   | { kind: "handle"; sel: Selection; handle: StairHandleKey; key: string }
   | { kind: "label"; sel: Selection; start: Point; offset: Point; key: string };
@@ -211,7 +211,7 @@ canvas.addEventListener("pointerdown", (e) => {
       drag = { kind: "move", sel, start: toWorld(view, p), origin: { ...origin }, key: `move:${sel.stair ?? sel.area}:${dragSeq}` };
     }
   } else {
-    drag = { kind: "pan", startX: e.clientX, startY: e.clientY, ox: view.ox, oy: view.oy };
+    drag = { kind: "pan", startX: e.clientX, startY: e.clientY, ox: view.ox, oy: view.oy, at: toWorld(view, p), moved: false };
     canvas.classList.add("panning");
   }
 });
@@ -219,6 +219,7 @@ canvas.addEventListener("pointerdown", (e) => {
 canvas.addEventListener("pointermove", (e) => {
   if (!drag) return;
   if (drag.kind === "pan") {
+    if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 3) drag.moved = true;
     view = { ...view, ox: drag.ox + e.clientX - drag.startX, oy: drag.oy + e.clientY - drag.startY };
     drawCanvas();
     return;
@@ -310,6 +311,17 @@ canvas.addEventListener("pointermove", (e) => {
 });
 
 function endDrag() {
+  // A click (not a pan) on empty space places the start point of an area that has no walls yet.
+  if (drag?.kind === "pan" && !drag.moved) {
+    const f = findArea(store.state.sketch, store.state.selection);
+    if (f && f.area.vectors.trim() === "" && !store.state.selection?.zone) {
+      const at = drag.at;
+      const targets = areaVertices(f.area.id);
+      const origin = snapMove([at], targets, at, at, false);
+      editArea((a) => (a.origin = origin));
+      vectors.focus();
+    }
+  }
   drag = null;
   canvas.classList.remove("panning");
   store.breakCoalesce();
@@ -763,6 +775,15 @@ $("btn-delete-zone").addEventListener("click", () => {
 
 // ---------- vector bar ----------
 
+/** Put a typed character at the end of the walls box and carry on typing there. */
+function typeIntoWalls(ch: string) {
+  if (vectors.disabled) return;
+  vectors.focus();
+  const end = vectors.value.length;
+  vectors.setRangeText(ch, end, end, "end");
+  vectors.dispatchEvent(new Event("input"));
+}
+
 const vectors = $<HTMLTextAreaElement>("vectors");
 const vstatus = $<HTMLDivElement>("vector-status");
 
@@ -1122,6 +1143,7 @@ $("btn-new").addEventListener("click", () => {
   if (!confirmDiscard()) return;
   files.reset();
   loadSketch(newSketch());
+  vectors.focus();
 });
 
 async function doOpen() {
@@ -1195,8 +1217,12 @@ document.addEventListener("keydown", (e) => {
     void doOpen();
   } else if (!mod && k === "f" && document.activeElement === canvas) {
     fit();
-  } else if (!mod && k === "r" && document.activeElement === canvas && store.state.selection?.stair) {
+  } else if (!mod && !e.altKey && k === "t" && document.activeElement === canvas && store.state.selection?.stair) {
     rotateStair();
+  } else if (!mod && !e.altKey && e.key.length === 1 && document.activeElement === canvas && k !== "f") {
+    // Typing on the drawing goes into the walls box, as in other sketch programs.
+    e.preventDefault();
+    typeIntoWalls(e.key);
   }
 });
 

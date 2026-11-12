@@ -188,6 +188,7 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
 .zone-opening { fill: rgba(179, 38, 30, 0.1); }
 .zone.selected { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 3; }
 .zone.outside { stroke: var(--warn); }
+.labels text.start-hint { text-anchor: start; font-size: 12px; fill: var(--accent); }
 .labels text.zone-label { font-size: 10px; fill: var(--muted); font-style: italic; }
 
 .stair { fill: var(--canvas); stroke: var(--ink); stroke-width: 1.2; cursor: move; }

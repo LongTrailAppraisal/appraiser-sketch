@@ -231,6 +231,11 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
         const start = toScreen(v, r.shape.path.start);
         parts.push(`<circle class="start-mark" cx="${n(start.x)}" cy="${n(start.y)}" r="4"/>`);
         parts.push(`<circle class="pen-mark" cx="${n(pen.x)}" cy="${n(pen.y)}" r="5"/>`);
+        if (r.shape.path.segments.length === 0) {
+          labels.push(
+            `<text class="start-hint" x="${n(start.x + 10)}" y="${n(start.y - 12)}">Start of ${esc(r.area.name)}: type walls (e.g. R24 U30 L24 D30), or click elsewhere to move the start</text>`,
+          );
+        }
       }
 
       if (pts.length >= 3) {
