@@ -50,7 +50,7 @@ import {
   type Side,
   type ZoneBand,
 } from "../geometry/index.js";
-import { levelName, totalsText } from "../export/text.js";
+import { levelName, totalGroups, totalsText } from "../export/text.js";
 import { printPageHtml, sketchPng } from "../export/print.js";
 import { FileManager, SketchFileError, download, loadDraft, saveDraft } from "./files.js";
 import { exportLabels, mergeLabels, parseLabelsFile } from "./labels.js";
@@ -1751,16 +1751,14 @@ function drawTable() {
   for (const s of result.structures) {
     if (s.areas.length === 0) continue;
     const rows: string[] = [];
-    for (const b of BUCKETS) {
-      if (b === "excluded" || s.reported[b] === 0) continue;
-      rows.push(`<tr class="${b === "gla" ? "gla" : ""}"><td>${esc(BUCKET_LABELS[b])}</td><td class="num">${s.reported[b].toLocaleString("en-US")} sf</td></tr>`);
-      if (b === "gla" || b === "finishedBelow" || b === "unfinishedBelow") {
-        for (const l of s.levels) {
-          const above = l.grade === "above";
-          const v = b === "unfinishedBelow" ? l.unfinished : l.finished;
-          if ((b === "gla") !== above || Math.round(v) === 0) continue;
-          rows.push(`<tr class="sub"><td>${esc(levelName(l.level))}</td><td class="num">${Math.round(v).toLocaleString("en-US")} sf</td></tr>`);
-        }
+    for (const g of totalGroups(s)) {
+      const single = g.rows.length === 1 && g.rows[0]!.label === g.name;
+      if (!single) rows.push(`<tr class="group"><td colspan="2">${esc(g.name)}</td></tr>`);
+      for (const r of g.rows) {
+        rows.push(`<tr class="${r.bucket === "gla" ? "gla" : ""}${single ? "" : " in-group"}"><td>${esc(r.label)}</td><td class="num">${r.sf.toLocaleString("en-US")} sf</td></tr>`);
+      }
+      for (const l of g.levels) {
+        rows.push(`<tr class="sub"><td>${esc(levelName(l.level))}</td><td class="num">${l.sf.toLocaleString("en-US")} sf</td></tr>`);
       }
     }
     if (rows.length === 0) rows.push(`<tr><td class="note" colspan="2">No areas yet</td></tr>`);

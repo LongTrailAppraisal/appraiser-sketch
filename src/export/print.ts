@@ -5,7 +5,6 @@
  */
 
 import {
-  BUCKETS,
   BUCKET_LABELS,
   formatLength,
   formatSqFt,
@@ -15,7 +14,7 @@ import {
   type SketchResult,
 } from "../geometry/index.js";
 import { standaloneSvg } from "./svg.js";
-import { levelName } from "./text.js";
+import { levelName, PRINT_GROUPS, totalGroups } from "./text.js";
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -47,16 +46,7 @@ function areaKindLabel(r: AreaResult): string {
   return BUCKET_LABELS[r.ansi.bucket];
 }
 
-/** The printed area list's groups, in order, by ANSI bucket. */
-export const PRINT_GROUPS: { name: string; buckets: Bucket[] }[] = [
-  { name: "Finished above grade", buckets: ["gla", "nonStandardAbove", "finishedNotConnected"] },
-  { name: "Unfinished above grade", buckets: ["unfinishedAbove"] },
-  { name: "Finished below grade", buckets: ["finishedBelow", "nonStandardBelow"] },
-  { name: "Unfinished below grade", buckets: ["unfinishedBelow"] },
-  { name: "Garages & carports", buckets: ["garage", "carport"] },
-  { name: "Amenities", buckets: ["porch", "deck", "patio", "breezeway", "other"] },
-  { name: "Not counted", buckets: ["excluded"] },
-];
+export { PRINT_GROUPS };
 
 /**
  * A structure's drawn areas grouped for the print: finished above grade
@@ -107,8 +97,12 @@ export function printPageHtml(result: SketchResult, screenScale?: number): strin
               .join(""),
         )
         .join("");
-      const totals = BUCKETS.filter((b) => b !== "excluded" && s.reported[b] > 0)
-        .map((b) => `<tr class="${b === "gla" ? "gla" : ""}"><td colspan="3">${esc(BUCKET_LABELS[b])}</td><td class="num">${s.reported[b].toLocaleString("en-US")}</td></tr>`)
+      const totals = totalGroups(s)
+        .map(
+          (g) =>
+            `<tr class="group"><th colspan="4">${esc(g.name)}</th></tr>` +
+            g.rows.map((r) => `<tr class="${r.bucket === "gla" ? "gla" : ""}"><td colspan="3">${esc(r.label)}</td><td class="num">${r.sf.toLocaleString("en-US")}</td></tr>`).join(""),
+        )
         .join("");
       const overrides = s.overrides.length
         ? `<p class="print-note">Not measured to ANSI Z765: ${s.overrides.map((o) => esc(`${o.area}: ${o.note}`)).join("; ")}</p>`

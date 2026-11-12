@@ -129,4 +129,46 @@ describe("printed area groups", async () => {
       ["Amenities", ["Deck", "Porch"]],
     ]);
   });
+
+  it("Copy totals and the print totals use the same groups", async () => {
+    const { totalGroups, totalsText } = await import("../src/export/text.js");
+    const sk: Sketch = {
+      formatVersion: 1, meta: { ansi: true },
+      structures: [{ id: "s", name: "Dwelling", kind: "dwelling", areas: [
+        area("Deck", { kind: "deck" }),
+        area("Second floor", { level: "2", vectors: "R10 U8 L10 D8" }),
+        area("Basement", { level: "basement", grade: "below", finished: false }),
+        area("Garage", { kind: "garage", vectors: "R20 U20 L20 D20" }),
+        area("First floor", { level: "1" }),
+        area("Porch", { kind: "porch", vectors: "R4 U5 L4 D5" }),
+      ] }],
+    };
+    const r = computeSketch(sk);
+    expect(totalGroups(r.structures[0]!).map((g) => g.name)).toEqual([
+      "Finished above grade", "Unfinished below grade", "Garages & carports", "Amenities",
+    ]);
+    expect(totalsText(r)).toBe(
+      [
+        "Dwelling",
+        "  Finished above grade",
+        "    Standard finished above grade (GLA): 180 sf",
+        "      Level 1: 100 sf",
+        "      Level 2: 80 sf",
+        "  Unfinished below grade: 100 sf",
+        "    Basement: 100 sf",
+        "  Garages & carports",
+        "    Garage: 400 sf",
+        "  Amenities",
+        "    Porch: 20 sf",
+        "    Deck: 100 sf",
+        "",
+        "Measurement standard: ANSI Z765-2021",
+        "",
+      ].join("\n"),
+    );
+    const html = printPageHtml(r);
+    const order = ["Finished above grade", "Unfinished below grade", "Garages &amp; carports", "Amenities"].map((n) => html.lastIndexOf(`<th colspan="4">${n}</th>`));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(html.slice(html.indexOf('class="sum"'))).toContain('<th colspan="4">Amenities</th>');
+  });
 });

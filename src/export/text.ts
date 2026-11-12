@@ -3,7 +3,7 @@
  * into report form fields and comment boxes.
  */
 
-import { BUCKETS, BUCKET_LABELS, type SketchResult, type StructureResult } from "../geometry/index.js";
+import { BUCKET_LABELS, levelRank, type Bucket, type SketchResult, type StructureResult } from "../geometry/index.js";
 
 const sf = (v: number) => `${Math.round(v).toLocaleString("en-US")} sf`;
 
@@ -19,20 +19,54 @@ export function levelName(level: string): string {
   return LEVEL_NAMES[level] ?? (level.trim() === "" ? "Unassigned level" : level);
 }
 
+/** Area groups, in report order: finished above grade first (first floor up), then unfinished above, below grade, garages, amenities. */
+export const PRINT_GROUPS: { name: string; buckets: Bucket[]; levels?: { grade: "above" | "below"; finished: boolean } }[] = [
+  { name: "Finished above grade", buckets: ["gla", "nonStandardAbove", "finishedNotConnected"], levels: { grade: "above", finished: true } },
+  { name: "Unfinished above grade", buckets: ["unfinishedAbove"], levels: { grade: "above", finished: false } },
+  { name: "Finished below grade", buckets: ["finishedBelow", "nonStandardBelow"], levels: { grade: "below", finished: true } },
+  { name: "Unfinished below grade", buckets: ["unfinishedBelow"], levels: { grade: "below", finished: false } },
+  { name: "Garages & carports", buckets: ["garage", "carport"] },
+  { name: "Amenities", buckets: ["porch", "deck", "patio", "breezeway", "other"] },
+  { name: "Not counted", buckets: ["excluded"] },
+];
+
+export interface TotalGroup {
+  name: string;
+  /** Reported (rounded) totals in this group, non-zero only. */
+  rows: { bucket: Bucket; label: string; sf: number }[];
+  /** The group's square feet by level, lowest floor first. */
+  levels: { level: string; sf: number }[];
+}
+
+/** A structure's reported totals grouped the same way as the printed area list. Empty groups are left out. */
+export function totalGroups(s: StructureResult): TotalGroup[] {
+  return PRINT_GROUPS.filter((g) => !g.buckets.includes("excluded"))
+    .map((g) => ({
+      name: g.name,
+      rows: g.buckets.filter((b) => s.reported[b] > 0).map((b) => ({ bucket: b, label: BUCKET_LABELS[b], sf: s.reported[b] })),
+      levels: g.levels
+        ? s.levels
+            .filter((l) => l.grade === g.levels!.grade)
+            .map((l) => ({ level: l.level, sf: Math.round(g.levels!.finished ? l.finished : l.unfinished) }))
+            .filter((l) => l.sf > 0)
+            .sort((a, b) => levelRank(a.level) - levelRank(b.level))
+        : [],
+    }))
+    .filter((g) => g.rows.length > 0);
+}
+
 export function structureLines(s: StructureResult): string[] {
   const lines = [s.structure.name];
-  for (const b of BUCKETS) {
-    if (b === "excluded" || s.reported[b] === 0) continue;
-    lines.push(`  ${BUCKET_LABELS[b]}: ${sf(s.reported[b])}`);
-  }
-  if (s.levels.length > 0) {
-    lines.push("  By level:");
-    for (const l of s.levels) {
-      const parts = [];
-      if (Math.round(l.finished) > 0) parts.push(`finished ${sf(l.finished)}`);
-      if (Math.round(l.unfinished) > 0) parts.push(`unfinished ${sf(l.unfinished)}`);
-      if (parts.length) lines.push(`    ${levelName(l.level)} (${l.grade} grade): ${parts.join(", ")}`);
+  for (const g of totalGroups(s)) {
+    // A group holding one total with the group's own name needs no heading.
+    const single = g.rows.length === 1 && g.rows[0]!.label === g.name;
+    if (single) lines.push(`  ${g.name}: ${sf(g.rows[0]!.sf)}`);
+    else {
+      lines.push(`  ${g.name}`);
+      for (const r of g.rows) lines.push(`    ${r.label}: ${sf(r.sf)}`);
     }
+    const pad = single ? "    " : "      ";
+    for (const l of g.levels) lines.push(`${pad}${levelName(l.level)}: ${sf(l.sf)}`);
   }
   return lines;
 }
