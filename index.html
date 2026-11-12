@@ -29,6 +29,12 @@
       <div class="group">
         <button id="btn-fit" title="Fit sketch to window (F)">Fit</button>
       </div>
+      <div class="group show-group" title="What to show on the sketch">
+        <span class="muted">Show</span>
+        <label class="toggle" title="Wall dimensions (also on the printed sketch)"><input type="checkbox" id="show-dims" checked /> Dimensions</label>
+        <label class="toggle" title="Area names and sizes (also on the printed sketch)"><input type="checkbox" id="show-labels" checked /> Labels</label>
+        <label class="toggle" title="Background grid (screen only)"><input type="checkbox" id="show-grid" checked /> Grid</label>
+      </div>
       <label class="toggle" title="Apply ANSI Z765 rules"><input type="checkbox" id="ansi-mode" checked /> ANSI Z765</label>
       <span id="file-status" class="file-status"></span>
       <label class="toggle theme" title="Color theme">Theme
@@ -98,6 +104,11 @@
               <label>Start x <input id="p-ox" type="text" inputmode="decimal" /></label>
               <label>Start y <input id="p-oy" type="text" inputmode="decimal" /></label>
             </div>
+            <div class="pair checks">
+              <label class="check"><input id="p-show-label" type="checkbox" /> Label</label>
+              <label class="check"><input id="p-show-dims" type="checkbox" /> Dimensions</label>
+            </div>
+            <button id="btn-reset-label" class="link" title="Put the label back in the middle of the area">Reset label position</button>
             <details id="override-box">
               <summary>Override ANSI</summary>
               <label class="check"><input id="p-override" type="checkbox" /> Report this area as</label>
@@ -155,7 +166,7 @@
               <button id="btn-rotate-stair" title="Rotate 90° (R)">Rotate 90°</button>
               <button id="btn-delete-stair" class="danger">Delete stair</button>
             </div>
-            <div class="note-small">Stairs count on the floor above (ANSI Z765); they don't change this area.</div>
+            <div class="note-small">Drag a stair to move it; drag its round handles to change the flights and width. Stairs count on the floor above (ANSI Z765), so they don't change this area.</div>
           </div>
         </section>
 

@@ -56,6 +56,12 @@ export interface Area {
   /** Stair symbols drawn on this level. They never change the area (ANSI: they count on the floor above). */
   stairs?: Stair[];
   override?: Override;
+  /** Area label offset from the outline's centre, feet. */
+  label?: Point;
+  /** Hide this area's name/size label. */
+  hideLabel?: boolean;
+  /** Hide this area's wall dimensions. */
+  hideDims?: boolean;
 }
 
 export type StructureKind = "dwelling" | "adu" | "garage" | "outbuilding";
@@ -76,6 +82,10 @@ export interface SketchMeta {
   date?: string;
   /** ANSI Z765 rules on (default) or off for private work. */
   ansi: boolean;
+  /** Show wall dimensions (default true). Applies to screen and print. */
+  showDims?: boolean;
+  /** Show area name/size labels (default true). */
+  showLabels?: boolean;
 }
 
 export interface Sketch {

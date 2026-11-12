@@ -103,6 +103,11 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .brand { font-weight: 650; letter-spacing: 0.02em; }
 .group { display: flex; gap: 4px; }
 .toggle { display: flex; gap: 5px; align-items: center; }
+.show-group { align-items: center; gap: 10px; }
+.muted { color: var(--muted); }
+button.link { border: 0; background: none; padding: 0; color: var(--accent); text-align: left; }
+button.link:disabled { color: var(--muted); }
+.form .pair.checks { align-items: center; }
 .file-status { margin-left: auto; color: var(--muted); }
 .theme select { width: auto; padding: 2px 4px; }
 
@@ -196,6 +201,10 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
   pointer-events: none; fill: var(--ink); text-anchor: middle; dominant-baseline: middle;
   paint-order: stroke; stroke: var(--canvas); stroke-width: 3.5px; stroke-linejoin: round;
 }
+.labels .area-label text { pointer-events: auto; cursor: move; }
+.labels .area-label.selected .area-name { fill: var(--accent); }
+.handle { fill: var(--canvas); stroke: var(--accent); stroke-width: 2; cursor: grab; }
+.handle:hover { fill: var(--accent); }
 .dim { fill: var(--muted) !important; font-variant-numeric: tabular-nums; }
 .area-name { font-size: 12px; font-weight: 600; }
 .area-size { font-size: 11px; fill: var(--muted) !important; font-variant-numeric: tabular-nums; }

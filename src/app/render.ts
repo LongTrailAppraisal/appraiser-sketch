@@ -11,6 +11,7 @@ import {
   orientation,
   signedPolygonArea,
   stairDrawing,
+  stairHandles,
   type AreaResult,
   type Stair,
   type Point,
@@ -143,12 +144,25 @@ export interface RenderOptions {
   height: number;
   view: View;
   selection: Selection | null;
+  /** Draw the background grid (default true). */
+  grid?: boolean;
+  /** Draw interactive extras: start/pen marks, stair handles (default true; off for print). */
+  interactive?: boolean;
+}
+
+/** Where an area's label sits: outline centre plus the saved offset. */
+export function labelPoint(r: AreaResult): Point {
+  const c = centroid(flatten(r.shape.path, Math.PI / 48));
+  return { x: c.x + (r.area.label?.x ?? 0), y: c.y + (r.area.label?.y ?? 0) };
 }
 
 export function renderSketch(result: SketchResult, opts: RenderOptions): string {
   const { view: v, width, height, selection } = opts;
-  const parts: string[] = [gridMarkup(v, width, height)];
+  const interactive = opts.interactive ?? true;
+  const meta = result.sketch.meta;
+  const parts: string[] = opts.grid === false ? [] : [gridMarkup(v, width, height)];
   const labels: string[] = [];
+  const handles: string[] = [];
 
   for (const s of result.structures) {
     for (const r of s.areas) {
@@ -182,6 +196,14 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
       for (const st of r.area.stairs ?? []) {
         const stairSelected = selected && selection?.stair === st.id;
         parts.push(stairMarkup(st, v, data, stairSelected));
+        if (stairSelected && interactive) {
+          for (const h of stairHandles(st)) {
+            const p = toScreen(v, h.point);
+            handles.push(
+              `<circle class="handle handle-${h.key}" ${data} data-stair="${esc(st.id)}" data-handle="${h.key}" cx="${n(p.x)}" cy="${n(p.y)}" r="6"><title>Drag to resize</title></circle>`,
+            );
+          }
+        }
       }
 
       // Open outline: show the implied closing wall and the pen position.
@@ -190,7 +212,7 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
         const start = toScreen(v, r.shape.path.start);
         parts.push(`<line class="misclosure" x1="${n(end.x)}" y1="${n(end.y)}" x2="${n(start.x)}" y2="${n(start.y)}"/>`);
       }
-      if (selected) {
+      if (selected && interactive) {
         const pen = toScreen(v, r.shape.path.segments.at(-1)?.to ?? r.shape.path.start);
         const start = toScreen(v, r.shape.path.start);
         parts.push(`<circle class="start-mark" cx="${n(start.x)}" cy="${n(start.y)}" r="4"/>`);
@@ -198,15 +220,19 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
       }
 
       if (pts.length >= 3) {
-        labels.push(dimensionLabels(r, v));
-        const c = toScreen(v, centroid(pts));
-        labels.push(
-          `<text class="area-name" x="${n(c.x)}" y="${n(c.y - 2)}">${esc(r.area.name)}</text>` +
-            `<text class="area-size" x="${n(c.x)}" y="${n(c.y + 12)}">${formatSqFt(r.shape.area)} sf</text>`,
-        );
+        if (meta.showDims !== false && !r.area.hideDims) labels.push(dimensionLabels(r, v));
+        if (meta.showLabels !== false && !r.area.hideLabel) {
+          const c = toScreen(v, labelPoint(r));
+          labels.push(
+            `<g class="area-label${selected ? " selected" : ""}" ${data} data-label="1">` +
+              `<text class="area-name" x="${n(c.x)}" y="${n(c.y - 2)}">${esc(r.area.name)}</text>` +
+              `<text class="area-size" x="${n(c.x)}" y="${n(c.y + 12)}">${formatSqFt(r.shape.area)} sf</text>` +
+              `<title>Drag to move the label; double-click to put it back</title></g>`,
+          );
+        }
       }
     }
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${parts.join("")}<g class="labels">${labels.join("")}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${parts.join("")}<g class="labels">${labels.join("")}</g>${handles.join("")}</svg>`;
 }

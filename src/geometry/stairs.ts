@@ -156,3 +156,95 @@ export function stairDrawing(s: Stair): StairDrawing {
     footprint: local.footprint,
   };
 }
+
+// ---------- mouse handles ----------
+
+export type StairHandleKey = "run1" | "run2" | "width";
+
+export interface StairHandle {
+  key: StairHandleKey;
+  /** World position of the handle. */
+  point: Point;
+}
+
+const MIN_WIDTH = 2;
+const MIN_RUN = 1;
+
+/** Handle positions in the local frame (right turn, before mirroring). */
+function localHandles(s: Stair): { key: StairHandleKey; p: Point }[] {
+  const w = Math.max(0.5, s.width);
+  const r1 = Math.max(0.5, s.run1);
+  const r2 = Math.max(0.5, s.run2);
+  const out: { key: StairHandleKey; p: Point }[] = [{ key: "run1", p: { x: w / 2, y: r1 } }];
+  switch (s.type) {
+    case "straight":
+      out.push({ key: "width", p: { x: w, y: r1 / 2 } });
+      break;
+    case "landing":
+      out.push({ key: "run2", p: { x: w / 2, y: r1 + w + r2 } }, { key: "width", p: { x: w, y: r1 / 2 } });
+      break;
+    case "l":
+    case "winder":
+      out.push({ key: "run2", p: { x: w + r2, y: r1 + w / 2 } }, { key: "width", p: { x: w, y: r1 / 2 } });
+      break;
+    case "u":
+      out.push({ key: "run2", p: { x: 1.5 * w, y: r1 - r2 } }, { key: "width", p: { x: 2 * w, y: r1 + w / 2 } });
+      break;
+  }
+  return out;
+}
+
+function frame(s: Stair) {
+  const w = Math.max(0.5, s.width);
+  const rad = (s.rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const mirror = s.turn === "left" && s.type !== "straight" && s.type !== "landing";
+  return {
+    toWorld: (p: Point): Point => {
+      const x = mirror ? w - p.x : p.x;
+      return { x: s.origin.x + x * cos - p.y * sin, y: s.origin.y + x * sin + p.y * cos };
+    },
+    toLocal: (p: Point): Point => {
+      const dx = p.x - s.origin.x;
+      const dy = p.y - s.origin.y;
+      const x = dx * cos + dy * sin;
+      const y = -dx * sin + dy * cos;
+      return { x: mirror ? w - x : x, y };
+    },
+  };
+}
+
+/** Where to draw the resize handles for a stair. */
+export function stairHandles(s: Stair): StairHandle[] {
+  const f = frame(s);
+  return localHandles(s).map((h) => ({ key: h.key, point: f.toWorld(h.p) }));
+}
+
+const toInch = (v: number) => Math.round(v * 12) / 12;
+
+/**
+ * New stair dimensions when a handle is dragged to a world point. Lengths
+ * snap to the nearest inch and stay at sensible minimums. The first flight's
+ * starting corner never moves.
+ */
+export function dragStairHandle(s: Stair, key: StairHandleKey, to: Point): Pick<Stair, "width" | "run1" | "run2"> {
+  const p = frame(s).toLocal(to);
+  const w = Math.max(0.5, s.width);
+  const r1 = Math.max(0.5, s.run1);
+  let { width, run1, run2 } = s;
+  if (key === "run1") {
+    run1 = Math.max(MIN_RUN, toInch(p.y));
+    // For a U, the return flight can't be longer than the first.
+    if (s.type === "u") run2 = Math.min(run2, run1);
+  } else if (key === "run2") {
+    if (s.type === "landing") run2 = p.y - r1 - w;
+    else if (s.type === "l" || s.type === "winder") run2 = p.x - w;
+    else if (s.type === "u") run2 = r1 - p.y;
+    run2 = Math.max(MIN_RUN, toInch(run2));
+    if (s.type === "u") run2 = Math.min(run2, run1);
+  } else {
+    width = Math.max(MIN_WIDTH, toInch(s.type === "u" ? p.x / 2 : p.x));
+  }
+  return { width, run1, run2 };
+}

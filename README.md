@@ -42,6 +42,9 @@ main); `src/export/` holds the paste-ready text; tests in `test/`.
 
 On the canvas: drag an area to move it (snaps to other areas' corners, or to
 6" grid; hold Alt for free movement), drag empty space to pan, wheel to zoom,
-F to fit. Ctrl+Z / Ctrl+Y undo and redo, Ctrl+S save, Ctrl+O open.
+F to fit. Click a stair to select it, then drag it or its round handles
+(flight lengths, width); R rotates it. Drag an area's label to move it,
+double-click to put it back. The toolbar's Show switches hide dimensions,
+labels or the grid; each area can also hide its own label or dimensions. Ctrl+Z / Ctrl+Y undo and redo, Ctrl+S save, Ctrl+O open.
 
 License: MIT (see LICENSE).

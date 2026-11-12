@@ -4,7 +4,7 @@ Working name: **sketch** (final name TBD — must be generic and not trademarked
 Status: draft 1, 2026-11-12. Phase 1 geometry module built and tested; first
 drawing screen working (see README). Stairs, templates and a theme
 selector done. Still to do in phase 1: zones editor (ceiling heights,
-openings), print/PDF, PNG, label dragging, workfile folder memory.
+openings), print/PDF, PNG, per-wall dimension control, workfile folder memory.
 
 ## 1. Purpose
 
@@ -194,6 +194,12 @@ unfinished living area per level for this.
   treads, walking-line arrow and UP/DN; draggable, rotatable. Flagged if drawn
   outside their area; never change area figures.
 - Theme: Auto (follows the system), Light or Dark; saved per browser.
+- Stair handles: a selected stair shows round handles at the end of each
+  flight and on its side; dragging resizes to the nearest inch.
+- Labels: area labels drag freely (offset saved in the file, double-click
+  resets). Show/hide: dimensions and labels for the whole sketch (saved in
+  the file, applies to print) or per area; grid per browser, screen only.
+  Per-wall dimension hiding and dragging is still to do.
 
 ## 9. Exports (phase 1)
 

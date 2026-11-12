@@ -20,6 +20,8 @@ import {
   defaultStair,
   stairDrawing,
   type Stair,
+  type StairHandleKey,
+  dragStairHandle,
   TEMPLATES,
   checkTemplate,
 } from "../geometry/index.js";
@@ -47,9 +49,16 @@ function size() {
   return { width: Math.max(1, Math.round(r.width)), height: Math.max(1, Math.round(r.height)) };
 }
 
+let showGrid = true;
+try {
+  showGrid = localStorage.getItem("sketch:grid") !== "off";
+} catch {
+  /* storage unavailable */
+}
+
 function drawCanvas() {
   const { width, height } = size();
-  canvas.innerHTML = renderSketch(result, { width, height, view, selection: store.state.selection });
+  canvas.innerHTML = renderSketch(result, { width, height, view, selection: store.state.selection, grid: showGrid });
 }
 
 function sketchBounds() {
@@ -99,7 +108,9 @@ canvas.addEventListener(
 
 type Drag =
   | { kind: "pan"; startX: number; startY: number; ox: number; oy: number }
-  | { kind: "move"; sel: Selection; start: Point; origin: Point; key: string };
+  | { kind: "move"; sel: Selection; start: Point; origin: Point; key: string }
+  | { kind: "handle"; sel: Selection; handle: StairHandleKey; key: string }
+  | { kind: "label"; sel: Selection; start: Point; offset: Point; key: string };
 
 let drag: Drag | null = null;
 let dragSeq = 0;
@@ -159,6 +170,26 @@ canvas.addEventListener("pointerdown", (e) => {
   } catch {
     /* synthetic or already-released pointer */
   }
+  const handleEl = el.closest("[data-handle]");
+  const labelEl = el.closest("[data-label]");
+  if (handleEl && e.button === 0) {
+    const sel: Selection = {
+      structure: handleEl.getAttribute("data-structure")!,
+      area: handleEl.getAttribute("data-area")!,
+      stair: handleEl.getAttribute("data-stair")!,
+    };
+    dragSeq += 1;
+    drag = { kind: "handle", sel, handle: handleEl.getAttribute("data-handle") as StairHandleKey, key: `handle:${sel.stair}:${dragSeq}` };
+    return;
+  }
+  if (labelEl && e.button === 0) {
+    const sel: Selection = { structure: labelEl.getAttribute("data-structure")!, area: labelEl.getAttribute("data-area")! };
+    store.select(sel);
+    const f = findArea(store.state.sketch, sel);
+    dragSeq += 1;
+    drag = { kind: "label", sel, start: toWorld(view, p), offset: { ...(f?.area.label ?? { x: 0, y: 0 }) }, key: `label:${sel.area}:${dragSeq}` };
+    return;
+  }
   if ((stairEl || areaEl) && e.button === 0) {
     const t = (stairEl ?? areaEl)!;
     const sel: Selection = { structure: t.getAttribute("data-structure")!, area: t.getAttribute("data-area")! };
@@ -184,6 +215,36 @@ canvas.addEventListener("pointermove", (e) => {
   }
   const r = canvas.getBoundingClientRect();
   const w = toWorld(view, { x: e.clientX - r.left, y: e.clientY - r.top });
+  if (drag.kind === "handle") {
+    const d = drag;
+    const f = findArea(store.state.sketch, d.sel);
+    const st = (f?.area.stairs ?? []).find((x) => x.id === d.sel.stair);
+    if (!st) return;
+    const next = dragStairHandle(st, d.handle, w);
+    if (next.width !== st.width || next.run1 !== st.run1 || next.run2 !== st.run2) {
+      store.update(
+        (draft) => {
+          const t = (findArea(draft, d.sel)?.area.stairs ?? []).find((x) => x.id === d.sel.stair);
+          if (t) Object.assign(t, next);
+        },
+        { coalesce: d.key },
+      );
+    }
+    return;
+  }
+  if (drag.kind === "label") {
+    const d = drag;
+    const inch = (v: number) => Math.round(v * 12) / 12;
+    const next = { x: inch(d.offset.x + w.x - d.start.x), y: inch(d.offset.y + w.y - d.start.y) };
+    store.update(
+      (draft) => {
+        const f = findArea(draft, d.sel);
+        if (f) f.area.label = next;
+      },
+      { coalesce: d.key },
+    );
+    return;
+  }
   const d = drag;
   const proposed = { x: d.origin.x + w.x - d.start.x, y: d.origin.y + w.y - d.start.y };
   const found = findArea(store.state.sketch, d.sel);
@@ -229,6 +290,15 @@ function endDrag() {
   store.breakCoalesce();
 }
 canvas.addEventListener("pointerup", endDrag);
+canvas.addEventListener("dblclick", (e) => {
+  const labelEl = (e.target as Element).closest("[data-label]");
+  if (!labelEl) return;
+  const sel: Selection = { structure: labelEl.getAttribute("data-structure")!, area: labelEl.getAttribute("data-area")! };
+  store.update((draft) => {
+    const f = findArea(draft, sel);
+    if (f) delete f.area.label;
+  });
+});
 canvas.addEventListener("pointercancel", endDrag);
 
 new ResizeObserver(() => drawCanvas()).observe(canvas);
@@ -291,6 +361,9 @@ const props = {
   overrideBucket: $<HTMLSelectElement>("p-override-bucket"),
   overrideNote: $<HTMLTextAreaElement>("p-override-note"),
   overrideBox: $<HTMLDetailsElement>("override-box"),
+  showLabel: $<HTMLInputElement>("p-show-label"),
+  showDims: $<HTMLInputElement>("p-show-dims"),
+  resetLabel: $<HTMLButtonElement>("btn-reset-label"),
 };
 const sprops = {
   panel: $<HTMLElement>("structure-props"),
@@ -334,6 +407,9 @@ function drawProps() {
   sync(props.overrideNote, area.override?.note ?? "");
   if (area.override && external) props.overrideBox.open = true;
   props.form.classList.toggle("non-living", area.kind !== "living");
+  syncCheck(props.showLabel, !area.hideLabel);
+  syncCheck(props.showDims, !area.hideDims);
+  props.resetLabel.disabled = !area.label || !!area.hideLabel;
   sync(sprops.name, structure.name);
   sync(sprops.kind, structure.kind);
 }
@@ -374,6 +450,20 @@ function coordInput(el: HTMLInputElement, axis: "x" | "y") {
 }
 coordInput(props.ox, "x");
 coordInput(props.oy, "y");
+
+props.showLabel.addEventListener("change", () =>
+  editArea((a) => {
+    if (props.showLabel.checked) delete a.hideLabel;
+    else a.hideLabel = true;
+  }),
+);
+props.showDims.addEventListener("change", () =>
+  editArea((a) => {
+    if (props.showDims.checked) delete a.hideDims;
+    else a.hideDims = true;
+  }),
+);
+props.resetLabel.addEventListener("click", () => editArea((a) => delete a.label));
 
 props.override.addEventListener("change", () =>
   editArea((a) => {
@@ -691,6 +781,8 @@ function say(msg: string) {
 function drawToolbar() {
   $<HTMLButtonElement>("btn-undo").disabled = !store.canUndo;
   $<HTMLButtonElement>("btn-redo").disabled = !store.canRedo;
+  syncCheck($<HTMLInputElement>("show-dims"), store.state.sketch.meta.showDims !== false);
+  syncCheck($<HTMLInputElement>("show-labels"), store.state.sketch.meta.showLabels !== false);
   const ansi = $<HTMLInputElement>("ansi-mode");
   if (ansi.checked !== store.state.sketch.meta.ansi) ansi.checked = store.state.sketch.meta.ansi;
   const dirty = store.revision !== savedRevision;
@@ -752,6 +844,21 @@ $("btn-delete-structure").addEventListener("click", () => {
     return s && a ? { structure: s.id, area: a.id } : null;
   });
   say("Structure deleted (Ctrl+Z to undo)");
+});
+
+$<HTMLInputElement>("show-dims").addEventListener("change", (e) => {
+  const on = (e.target as HTMLInputElement).checked;
+  store.update((draft) => {
+    if (on) delete draft.meta.showDims;
+    else draft.meta.showDims = false;
+  });
+});
+$<HTMLInputElement>("show-labels").addEventListener("change", (e) => {
+  const on = (e.target as HTMLInputElement).checked;
+  store.update((draft) => {
+    if (on) delete draft.meta.showLabels;
+    else draft.meta.showLabels = false;
+  });
 });
 
 $<HTMLInputElement>("ansi-mode").addEventListener("change", (e) => {
@@ -865,6 +972,18 @@ if (!import.meta.env.DEV) {
     if (store.revision !== savedRevision) e.preventDefault();
   });
 }
+
+const gridToggle = $<HTMLInputElement>("show-grid");
+gridToggle.checked = showGrid;
+gridToggle.addEventListener("change", () => {
+  showGrid = gridToggle.checked;
+  try {
+    localStorage.setItem("sketch:grid", showGrid ? "on" : "off");
+  } catch {
+    /* storage unavailable */
+  }
+  drawCanvas();
+});
 
 // ---------- theme (a per-viewer preference, kept in this browser only) ----------
 
