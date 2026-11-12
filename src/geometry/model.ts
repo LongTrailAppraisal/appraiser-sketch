@@ -26,6 +26,7 @@ import {
   type Path,
   type Point,
 } from "./path.js";
+import { stairDrawing, type Stair } from "./stairs.js";
 import { formatFeetInches } from "./units.js";
 import { parseVectors, type VectorError } from "./vectors.js";
 
@@ -52,6 +53,8 @@ export interface Area {
   origin: Point;
   vectors: string;
   zones: Zone[];
+  /** Stair symbols drawn on this level. They never change the area (ANSI: they count on the floor above). */
+  stairs?: Stair[];
   override?: Override;
 }
 
@@ -171,6 +174,12 @@ export function computeArea(area: Area, opts: { ansi?: boolean } = {}): AreaResu
     if (!s.closure.closed && s.path.segments.length > 0) problems.push(`zone ${label}: outline does not close`);
     if (!inside) problems.push(`zone ${label}: extends outside the area`);
     return { ...s, zone, inside };
+  });
+
+  (area.stairs ?? []).forEach((st, i) => {
+    if (outline.length < 3) return;
+    const pts = stairDrawing(st).parts.flat();
+    if (!pts.every((p) => containsPoint(outline, p))) problems.push(`stair ${i + 1}: drawn outside the area`);
   });
 
   const ansi = classify(

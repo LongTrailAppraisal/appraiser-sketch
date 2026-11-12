@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <title>Sketch</title>
+    <script>
+      try {
+        const t = localStorage.getItem("sketch:theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
     <link rel="stylesheet" href="/src/app/style.css" />
   </head>
   <body>
@@ -25,6 +31,13 @@
       </div>
       <label class="toggle" title="Apply ANSI Z765 rules"><input type="checkbox" id="ansi-mode" checked /> ANSI Z765</label>
       <span id="file-status" class="file-status"></span>
+      <label class="toggle theme" title="Color theme">Theme
+        <select id="theme">
+          <option value="auto">Auto</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
     </header>
 
     <main class="layout">
@@ -94,6 +107,55 @@
             <div class="row-buttons">
               <button id="btn-delete-area" class="danger">Delete area</button>
             </div>
+          </div>
+        </section>
+
+        <section class="panel" id="stairs-panel">
+          <div class="panel-head">
+            <h2>Stairs</h2>
+            <button id="btn-add-stair" title="Add a stair to the selected area">+ Stair</button>
+          </div>
+          <div id="stair-list" class="chips"></div>
+          <div class="form" id="stair-form">
+            <label>Type <select id="st-type"></select></label>
+            <div class="pair">
+              <label>Width <input id="st-width" type="text" inputmode="decimal" /></label>
+              <label>Arrow
+                <select id="st-dir">
+                  <option value="up">Up</option>
+                  <option value="down">Down</option>
+                </select>
+              </label>
+            </div>
+            <div class="pair">
+              <label>First flight <input id="st-run1" type="text" inputmode="decimal" /></label>
+              <label class="two-flight">Second flight <input id="st-run2" type="text" inputmode="decimal" /></label>
+            </div>
+            <div class="pair">
+              <label class="turning">Turn
+                <select id="st-turn">
+                  <option value="right">Right</option>
+                  <option value="left">Left</option>
+                </select>
+              </label>
+              <label>Runs
+                <select id="st-rot">
+                  <option value="0">North</option>
+                  <option value="270">East</option>
+                  <option value="180">South</option>
+                  <option value="90">West</option>
+                </select>
+              </label>
+            </div>
+            <div class="pair">
+              <label>Start x <input id="st-x" type="text" inputmode="decimal" /></label>
+              <label>Start y <input id="st-y" type="text" inputmode="decimal" /></label>
+            </div>
+            <div class="row-buttons">
+              <button id="btn-rotate-stair" title="Rotate 90° (R)">Rotate 90°</button>
+              <button id="btn-delete-stair" class="danger">Delete stair</button>
+            </div>
+            <div class="note-small">Stairs count on the floor above (ANSI Z765); they don't change this area.</div>
           </div>
         </section>
 

@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import {
   BUCKETS,
   BUCKET_LABELS,
@@ -15,11 +16,15 @@ import {
   type Point,
   type SketchResult,
   type StructureKind,
+  STAIR_TYPES,
+  defaultStair,
+  stairDrawing,
+  type Stair,
 } from "../geometry/index.js";
 import { levelName, totalsText } from "../export/text.js";
 import { FileManager, SketchFileError, loadDraft, saveDraft } from "./files.js";
 import { renderSketch, toWorld, type View } from "./render.js";
-import { Store, findArea, newArea, newSketch, newStructure, type Selection } from "./store.js";
+import { Store, findArea, newArea, newId, newSketch, newStructure, type Selection } from "./store.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -92,51 +97,59 @@ canvas.addEventListener(
 
 type Drag =
   | { kind: "pan"; startX: number; startY: number; ox: number; oy: number }
-  | { kind: "move"; sel: Selection; start: Point; origin: Point; key: string; moved: boolean };
+  | { kind: "move"; sel: Selection; start: Point; origin: Point; key: string };
 
 let drag: Drag | null = null;
 let dragSeq = 0;
 const GRID_SNAP = 0.5; // feet
 const VERTEX_SNAP_PX = 10;
 
-function otherVertices(sel: Selection): Point[] {
+/** Corners of every area outline, optionally leaving one area out. */
+function areaVertices(skipArea?: string): Point[] {
   const pts: Point[] = [];
   for (const s of result.structures) {
     for (const a of s.areas) {
-      if (s.structure.id === sel.structure && a.area.id === sel.area) continue;
+      if (a.area.id === skipArea) continue;
       pts.push(...flatten(a.shape.path, Math.PI / 8));
     }
   }
   return pts;
 }
 
-/** Snap an area move: to another area's corner if one is near, otherwise to the half-foot grid. */
-function snapOrigin(sel: Selection, origin: Point, proposed: Point, free: boolean): Point {
+/**
+ * Snap a move of `mine` (points at the original position) by the proposed
+ * offset: onto a target corner if one is within a few pixels, otherwise to
+ * the half-foot grid. Returns the new origin.
+ */
+function snapMove(mine: Point[], targets: Point[], origin: Point, proposed: Point, free: boolean): Point {
   if (free) return proposed;
-  const found = findArea(store.state.sketch, sel);
-  const ar = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === sel.area);
-  if (found && ar) {
-    const dx = proposed.x - origin.x;
-    const dy = proposed.y - origin.y;
-    const mine = ar.shape.path.segments.length ? flatten(ar.shape.path, Math.PI / 8) : [ar.shape.path.start];
-    const others = otherVertices(sel);
-    let best: { d: number; ox: number; oy: number } | null = null;
-    for (const m of mine) {
-      const mx = m.x + dx;
-      const my = m.y + dy;
-      for (const o of others) {
-        const d = Math.hypot(o.x - mx, o.y - my) * view.scale;
-        if (d < VERTEX_SNAP_PX && (!best || d < best.d)) best = { d, ox: o.x - mx, oy: o.y - my };
-      }
+  const dx = proposed.x - origin.x;
+  const dy = proposed.y - origin.y;
+  let best: { d: number; ox: number; oy: number } | null = null;
+  for (const m of mine) {
+    const mx = m.x + dx;
+    const my = m.y + dy;
+    for (const o of targets) {
+      const d = Math.hypot(o.x - mx, o.y - my) * view.scale;
+      if (d < VERTEX_SNAP_PX && (!best || d < best.d)) best = { d, ox: o.x - mx, oy: o.y - my };
     }
-    if (best) return { x: proposed.x + best.ox, y: proposed.y + best.oy };
   }
+  if (best) return { x: proposed.x + best.ox, y: proposed.y + best.oy };
   return { x: Math.round(proposed.x / GRID_SNAP) * GRID_SNAP, y: Math.round(proposed.y / GRID_SNAP) * GRID_SNAP };
+}
+
+function dragOrigin(sel: Selection): Point | null {
+  const f = findArea(store.state.sketch, sel);
+  if (!f) return null;
+  if (sel.stair) return (f.area.stairs ?? []).find((st) => st.id === sel.stair)?.origin ?? null;
+  return f.area.origin;
 }
 
 canvas.addEventListener("pointerdown", (e) => {
   canvas.focus();
-  const target = (e.target as Element).closest("[data-area]");
+  const el = e.target as Element;
+  const stairEl = el.closest("[data-stair]");
+  const areaEl = el.closest("[data-area]");
   const r = canvas.getBoundingClientRect();
   const p = { x: e.clientX - r.left, y: e.clientY - r.top };
   try {
@@ -144,13 +157,15 @@ canvas.addEventListener("pointerdown", (e) => {
   } catch {
     /* synthetic or already-released pointer */
   }
-  if (target && e.button === 0) {
-    const sel = { structure: target.getAttribute("data-structure")!, area: target.getAttribute("data-area")! };
+  if ((stairEl || areaEl) && e.button === 0) {
+    const t = (stairEl ?? areaEl)!;
+    const sel: Selection = { structure: t.getAttribute("data-structure")!, area: t.getAttribute("data-area")! };
+    if (stairEl) sel.stair = stairEl.getAttribute("data-stair")!;
     store.select(sel);
-    const found = findArea(store.state.sketch, sel);
-    if (found) {
+    const origin = dragOrigin(sel);
+    if (origin) {
       dragSeq += 1;
-      drag = { kind: "move", sel, start: toWorld(view, p), origin: { ...found.area.origin }, key: `move:${sel.area}:${dragSeq}`, moved: false };
+      drag = { kind: "move", sel, start: toWorld(view, p), origin: { ...origin }, key: `move:${sel.stair ?? sel.area}:${dragSeq}` };
     }
   } else {
     drag = { kind: "pan", startX: e.clientX, startY: e.clientY, ox: view.ox, oy: view.oy };
@@ -169,14 +184,37 @@ canvas.addEventListener("pointermove", (e) => {
   const w = toWorld(view, { x: e.clientX - r.left, y: e.clientY - r.top });
   const d = drag;
   const proposed = { x: d.origin.x + w.x - d.start.x, y: d.origin.y + w.y - d.start.y };
-  const next = snapOrigin(d.sel, d.origin, proposed, e.altKey);
-  const cur = findArea(store.state.sketch, d.sel)?.area.origin;
+  const found = findArea(store.state.sketch, d.sel);
+  if (!found) return;
+  let next: Point;
+  if (d.sel.stair) {
+    const st = (found.area.stairs ?? []).find((x) => x.id === d.sel.stair);
+    if (!st) return;
+    const mine = stairDrawing({ ...st, origin: d.origin }).parts.flat();
+    next = snapMove(mine, areaVertices(), d.origin, proposed, e.altKey);
+  } else {
+    const ar = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === d.sel.area);
+    if (!ar) return;
+    const cur = ar.area.origin;
+    // Outline points as they were at drag start (the outline moves with the origin).
+    const pts = (ar.shape.path.segments.length ? flatten(ar.shape.path, Math.PI / 8) : [ar.shape.path.start]).map((q) => ({
+      x: q.x - cur.x + d.origin.x,
+      y: q.y - cur.y + d.origin.y,
+    }));
+    next = snapMove(pts, areaVertices(d.sel.area), d.origin, proposed, e.altKey);
+  }
+  const cur = dragOrigin(d.sel);
   if (cur && (cur.x !== next.x || cur.y !== next.y)) {
-    d.moved = true;
     store.update(
       (draft) => {
         const f = findArea(draft, d.sel);
-        if (f) f.area.origin = next;
+        if (!f) return;
+        if (d.sel.stair) {
+          const st = (f.area.stairs ?? []).find((x) => x.id === d.sel.stair);
+          if (st) st.origin = next;
+        } else {
+          f.area.origin = next;
+        }
       },
       { coalesce: d.key },
     );
@@ -365,6 +403,136 @@ function editStructure(fn: (s: ReturnType<typeof newStructure>) => void, coalesc
 }
 sprops.name.addEventListener("input", () => editStructure((s) => (s.name = sprops.name.value), "sname"));
 sprops.kind.addEventListener("change", () => editStructure((s) => (s.kind = sprops.kind.value as StructureKind)));
+
+// ---------- stairs ----------
+
+const stairs = {
+  panel: $<HTMLElement>("stairs-panel"),
+  list: $<HTMLDivElement>("stair-list"),
+  form: $<HTMLDivElement>("stair-form"),
+  type: $<HTMLSelectElement>("st-type"),
+  width: $<HTMLInputElement>("st-width"),
+  dir: $<HTMLSelectElement>("st-dir"),
+  run1: $<HTMLInputElement>("st-run1"),
+  run2: $<HTMLInputElement>("st-run2"),
+  turn: $<HTMLSelectElement>("st-turn"),
+  rot: $<HTMLSelectElement>("st-rot"),
+  x: $<HTMLInputElement>("st-x"),
+  y: $<HTMLInputElement>("st-y"),
+};
+stairs.type.innerHTML = STAIR_TYPES.map((t) => `<option value="${t.value}">${esc(t.label)}</option>`).join("");
+
+const STAIR_TYPE_SHORT: Record<string, string> = { straight: "Straight", landing: "Landing", l: "L", winder: "Winder", u: "U" };
+
+function selectedStair(): Stair | null {
+  const sel = store.state.selection;
+  const f = findArea(store.state.sketch, sel);
+  return f && sel?.stair ? ((f.area.stairs ?? []).find((s) => s.id === sel.stair) ?? null) : null;
+}
+
+function drawStairs() {
+  const sel = store.state.selection;
+  const f = findArea(store.state.sketch, sel);
+  stairs.panel.classList.toggle("disabled", !f);
+  const list = f?.area.stairs ?? [];
+  stairs.list.innerHTML = list.length
+    ? list
+        .map((st, i) => `<button data-stair="${esc(st.id)}" class="${sel?.stair === st.id ? "selected" : ""}">${i + 1}. ${STAIR_TYPE_SHORT[st.type]}</button>`)
+        .join("")
+    : `<span class="empty">None on this area</span>`;
+  const st = selectedStair();
+  stairs.form.classList.toggle("hidden", !st);
+  if (!st) return;
+  stairs.form.classList.toggle("one-flight", st.type === "straight");
+  stairs.form.classList.toggle("no-turn", st.type === "straight" || st.type === "landing");
+  sync(stairs.type, st.type);
+  sync(stairs.width, formatFeetInches(st.width));
+  sync(stairs.dir, st.direction);
+  sync(stairs.run1, formatFeetInches(st.run1));
+  sync(stairs.run2, formatFeetInches(st.run2));
+  sync(stairs.turn, st.turn);
+  sync(stairs.rot, String(((st.rotation % 360) + 360) % 360));
+  sync(stairs.x, fmtCoord(st.origin.x));
+  sync(stairs.y, fmtCoord(st.origin.y));
+}
+
+function editStair(fn: (s: Stair) => void, coalesce?: string) {
+  const sel = store.state.selection;
+  if (!sel?.stair) return;
+  store.update(
+    (draft) => {
+      const f = findArea(draft, sel);
+      const st = (f?.area.stairs ?? []).find((x) => x.id === sel.stair);
+      if (st) fn(st);
+    },
+    coalesce ? { coalesce: `${coalesce}:${sel.stair}` } : {},
+  );
+}
+
+stairs.list.addEventListener("click", (e) => {
+  const b = (e.target as Element).closest("[data-stair]");
+  const sel = store.state.selection;
+  if (b && sel) store.select({ structure: sel.structure, area: sel.area, stair: b.getAttribute("data-stair")! });
+});
+
+$("btn-add-stair").addEventListener("click", () => {
+  const sel = store.state.selection;
+  const ar = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === sel?.area);
+  if (!sel || !ar) return;
+  // Start just inside the area's lower-left corner, sized to fit.
+  const b = ar.shape.path.segments.length ? bounds(ar.shape.path) : { minX: ar.area.origin.x, minY: ar.area.origin.y, maxX: ar.area.origin.x + 14, maxY: ar.area.origin.y + 14 };
+  const run1 = Math.max(3, Math.min(12, Math.floor(b.maxY - b.minY - 2)));
+  const st = defaultStair({ id: newId("t"), origin: { x: Math.ceil(b.minX + 1), y: Math.ceil(b.minY + 1) }, run1 });
+  store.update((draft) => {
+    const f = findArea(draft, sel);
+    if (!f) return;
+    (f.area.stairs ??= []).push(st);
+    return { structure: sel.structure, area: sel.area, stair: st.id };
+  });
+});
+
+$("btn-delete-stair").addEventListener("click", () => {
+  const sel = store.state.selection;
+  if (!sel?.stair) return;
+  store.update((draft) => {
+    const f = findArea(draft, sel);
+    if (f) f.area.stairs = (f.area.stairs ?? []).filter((x) => x.id !== sel.stair);
+    return { structure: sel.structure, area: sel.area };
+  });
+  say("Stair deleted (Ctrl+Z to undo)");
+});
+
+function rotateStair() {
+  editStair((st) => (st.rotation = (st.rotation + 270) % 360)); // clockwise on screen
+}
+$("btn-rotate-stair").addEventListener("click", rotateStair);
+
+stairs.type.addEventListener("change", () => editStair((st) => (st.type = stairs.type.value as Stair["type"])));
+stairs.dir.addEventListener("change", () => editStair((st) => (st.direction = stairs.dir.value as Stair["direction"])));
+stairs.turn.addEventListener("change", () => editStair((st) => (st.turn = stairs.turn.value as Stair["turn"])));
+stairs.rot.addEventListener("change", () => editStair((st) => (st.rotation = Number(stairs.rot.value))));
+
+function lengthField(el: HTMLInputElement, apply: (st: Stair, v: number) => void, key: string, allowNegative = false) {
+  el.addEventListener("input", () => {
+    const t = el.value.trim();
+    const neg = allowNegative && t.startsWith("-");
+    const v = parseLength(neg ? t.slice(1) : t);
+    const ok = v !== null && (allowNegative || v > 0);
+    el.classList.toggle("invalid", !ok);
+    if (ok) editStair((st) => apply(st, neg ? -v! : v!), key);
+  });
+  el.addEventListener("blur", () => {
+    el.classList.remove("invalid");
+    external = true;
+    drawStairs();
+    external = false;
+  });
+}
+lengthField(stairs.width, (st, v) => (st.width = v), "st-width");
+lengthField(stairs.run1, (st, v) => (st.run1 = v), "st-run1");
+lengthField(stairs.run2, (st, v) => (st.run2 = v), "st-run2");
+lengthField(stairs.x, (st, v) => (st.origin = { ...st.origin, x: v }), "st-x", true);
+lengthField(stairs.y, (st, v) => (st.origin = { ...st.origin, y: v }), "st-y", true);
 
 // ---------- vector bar ----------
 
@@ -616,11 +784,33 @@ document.addEventListener("keydown", (e) => {
     void doOpen();
   } else if (!mod && k === "f" && document.activeElement === canvas) {
     fit();
+  } else if (!mod && k === "r" && document.activeElement === canvas && store.state.selection?.stair) {
+    rotateStair();
   }
 });
 
-window.addEventListener("beforeunload", (e) => {
-  if (store.revision !== savedRevision) e.preventDefault();
+// Warn before closing with unsaved changes (not in development, where the
+// dev server reloads the page on every code change; the draft covers that).
+if (!import.meta.env.DEV) {
+  window.addEventListener("beforeunload", (e) => {
+    if (store.revision !== savedRevision) e.preventDefault();
+  });
+}
+
+// ---------- theme (a per-viewer preference, kept in this browser only) ----------
+
+const themeSelect = $<HTMLSelectElement>("theme");
+themeSelect.value = document.documentElement.dataset.theme ?? "auto";
+themeSelect.addEventListener("change", () => {
+  const t = themeSelect.value;
+  if (t === "auto") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = t;
+  try {
+    localStorage.setItem("sketch:theme", t);
+  } catch {
+    /* storage unavailable; the choice lasts for this visit */
+  }
+  drawCanvas();
 });
 
 // ---------- wiring ----------
@@ -631,6 +821,7 @@ function redraw() {
   drawCanvas();
   drawTree();
   drawProps();
+  drawStairs();
   drawVectorBar();
   drawTable();
   drawToolbar();
@@ -639,7 +830,22 @@ function redraw() {
   draftTimer = window.setTimeout(() => saveDraft(store.state.sketch), 400);
 }
 
+const SELECTION_KEY = "sketch:selection";
+try {
+  const saved = JSON.parse(localStorage.getItem(SELECTION_KEY) ?? "null") as Selection | null;
+  if (findArea(store.state.sketch, saved)) store.select(saved);
+} catch {
+  /* no saved selection */
+}
+
 store.subscribe(redraw);
+store.subscribe((st) => {
+  try {
+    localStorage.setItem(SELECTION_KEY, JSON.stringify(st.selection));
+  } catch {
+    /* storage unavailable */
+  }
+});
 redraw();
 requestAnimationFrame(() => fit());
 

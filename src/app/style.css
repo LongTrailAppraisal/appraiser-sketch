@@ -38,6 +38,25 @@
   }
 }
 
+:root[data-theme="dark"] {
+  --bg: #17191b;
+  --panel: #1f2225;
+  --ink: #e6e6e3;
+  --muted: #9a9fa4;
+  --line: #34383c;
+  --accent: #7fb0ea;
+  --accent-soft: rgba(127, 176, 234, 0.16);
+  --warn: #f28b82;
+  --ok: #81c995;
+  --grid: #222528;
+  --grid-major: #2c3034;
+  --living: rgba(127, 176, 234, 0.1);
+  --below: rgba(214, 170, 100, 0.12);
+  --nonliving: rgba(255, 255, 255, 0.04);
+  --canvas: #1b1d20;
+  color-scheme: dark;
+}
+
 * { box-sizing: border-box; }
 
 html, body { height: 100%; margin: 0; }
@@ -85,6 +104,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .group { display: flex; gap: 4px; }
 .toggle { display: flex; gap: 5px; align-items: center; }
 .file-status { margin-left: auto; color: var(--muted); }
+.theme select { width: auto; padding: 2px 4px; }
 
 .layout {
   flex: 1;
@@ -120,6 +140,13 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .form .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .form .living-only { display: flex; flex-direction: column; gap: 6px; }
 .form.non-living .living-only { display: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.chips button.selected { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.chips .empty { color: var(--muted); }
+.note-small { color: var(--muted); font-size: 11.5px; }
+#stair-form.hidden { display: none; }
+#stair-form.one-flight .two-flight, #stair-form.no-turn .turning { visibility: hidden; }
+input.invalid { border-color: var(--warn); }
 details summary { cursor: pointer; color: var(--muted); }
 details[open] { display: flex; flex-direction: column; gap: 6px; }
 .panel.disabled .form { opacity: 0.4; pointer-events: none; }
@@ -153,6 +180,13 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
 .zone { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
 .zone-low { fill: rgba(128, 128, 128, 0.12); }
 .zone-opening { fill: rgba(179, 38, 30, 0.08); }
+
+.stair { fill: var(--canvas); stroke: var(--ink); stroke-width: 1.2; cursor: move; }
+.stair.selected { stroke: var(--accent); stroke-width: 2.2; }
+.tread { stroke: var(--muted); stroke-width: 0.8; pointer-events: none; }
+.stair-arrow { fill: none; stroke: var(--ink); stroke-width: 1.2; pointer-events: none; }
+.stair-head { fill: var(--ink); pointer-events: none; }
+.stair-label { font-size: 9px; font-weight: 650; fill: var(--ink); text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
 
 .misclosure { stroke: var(--warn); stroke-width: 1.5; stroke-dasharray: 4 3; pointer-events: none; }
 .start-mark { fill: var(--canvas); stroke: var(--accent); stroke-width: 2; pointer-events: none; }

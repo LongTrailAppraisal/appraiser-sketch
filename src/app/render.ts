@@ -10,7 +10,9 @@ import {
   formatSqFt,
   orientation,
   signedPolygonArea,
+  stairDrawing,
   type AreaResult,
+  type Stair,
   type Point,
   type SketchResult,
 } from "../geometry/index.js";
@@ -104,6 +106,38 @@ function dimensionLabels(r: AreaResult, v: View): string {
   return out.join("");
 }
 
+function stairMarkup(st: Stair, v: View, data: string, selected: boolean): string {
+  const d = stairDrawing(st);
+  const poly = (pts: Point[]) => `M${pts.map((p) => toScreen(v, p)).map((p) => `${n(p.x)},${n(p.y)}`).join("L")}Z`;
+  const out: string[] = [];
+  const cls = `stair${selected ? " selected" : ""}`;
+  for (const part of d.parts) out.push(`<path class="${cls}" ${data} data-stair="${esc(st.id)}" d="${poly(part)}"/>`);
+  for (const [a, b] of d.lines) {
+    const p = toScreen(v, a);
+    const q = toScreen(v, b);
+    out.push(`<line class="tread" x1="${n(p.x)}" y1="${n(p.y)}" x2="${n(q.x)}" y2="${n(q.y)}"/>`);
+  }
+  const arrow = d.arrow.map((p) => toScreen(v, p));
+  if (arrow.length >= 2) {
+    out.push(`<polyline class="stair-arrow" points="${arrow.map((p) => `${n(p.x)},${n(p.y)}`).join(" ")}"/>`);
+    // Arrowhead at the end, pointing along the last segment.
+    const tip = arrow[arrow.length - 1]!;
+    const prev = arrow[arrow.length - 2]!;
+    const ang = Math.atan2(tip.y - prev.y, tip.x - prev.x);
+    const h = Math.max(5, Math.min(10, v.scale * 0.6));
+    const l = { x: tip.x - h * Math.cos(ang - 0.45), y: tip.y - h * Math.sin(ang - 0.45) };
+    const r = { x: tip.x - h * Math.cos(ang + 0.45), y: tip.y - h * Math.sin(ang + 0.45) };
+    out.push(`<path class="stair-head" d="M${n(tip.x)},${n(tip.y)}L${n(l.x)},${n(l.y)}L${n(r.x)},${n(r.y)}Z"/>`);
+    // UP / DN label just before the start of the walking line.
+    const a0 = arrow[0]!;
+    const a1 = arrow[1]!;
+    const back = Math.atan2(a1.y - a0.y, a1.x - a0.x);
+    const lp = { x: a0.x - 9 * Math.cos(back), y: a0.y - 9 * Math.sin(back) };
+    out.push(`<text class="stair-label" x="${n(lp.x)}" y="${n(lp.y)}">${st.direction === "up" ? "UP" : "DN"}</text>`);
+  }
+  return out.join("");
+}
+
 export interface RenderOptions {
   width: number;
   height: number;
@@ -120,7 +154,8 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
     for (const r of s.areas) {
       const pts = flatten(r.shape.path, Math.PI / 48);
       const selected = selection?.structure === s.structure.id && selection.area === r.area.id;
-      const cls = ["area", `kind-${r.area.kind}`, `bucket-${r.ansi.bucket}`, selected ? "selected" : "", r.problems.length ? "has-problems" : ""]
+      const areaSelected = selected && !selection?.stair;
+      const cls = ["area", `kind-${r.area.kind}`, `bucket-${r.ansi.bucket}`, areaSelected ? "selected" : "", r.problems.length ? "has-problems" : ""]
         .filter(Boolean)
         .join(" ");
       const data = `data-structure="${esc(s.structure.id)}" data-area="${esc(r.area.id)}"`;
@@ -141,6 +176,12 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
             `<path class="zone zone-${z.zone.band}" ${data} d="M${zp.map((p) => `${n(p.x)},${n(p.y)}`).join("L")}Z"/>`,
           );
         }
+      }
+
+      // Stairs (symbols only; they never change the area).
+      for (const st of r.area.stairs ?? []) {
+        const stairSelected = selected && selection?.stair === st.id;
+        parts.push(stairMarkup(st, v, data, stairSelected));
       }
 
       // Open outline: show the implied closing wall and the pen position.

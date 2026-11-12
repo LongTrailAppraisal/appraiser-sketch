@@ -10,6 +10,8 @@ import { FORMAT_VERSION, type Area, type Sketch, type Structure } from "../geome
 export interface Selection {
   structure: string;
   area: string;
+  /** A stair on that area, when one is selected. */
+  stair?: string;
 }
 
 export interface State {
@@ -40,6 +42,7 @@ export function newArea(over: Partial<Area> = {}): Area {
     origin: { x: 0, y: 0 },
     vectors: "",
     zones: [],
+    stairs: [],
     ...over,
   };
 }
@@ -156,7 +159,10 @@ export class Store {
   private validSelection(sel: Selection | null, sketch: Sketch = this.current.sketch): Selection | null {
     if (!sel) return null;
     const s = sketch.structures.find((x) => x.id === sel.structure);
-    return s && s.areas.some((a) => a.id === sel.area) ? sel : null;
+    const a = s?.areas.find((x) => x.id === sel.area);
+    if (!s || !a) return null;
+    if (sel.stair && !(a.stairs ?? []).some((st) => st.id === sel.stair)) return { structure: s.id, area: a.id };
+    return sel;
   }
 }
 
