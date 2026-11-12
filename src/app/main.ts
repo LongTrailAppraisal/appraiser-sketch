@@ -73,6 +73,12 @@ function size() {
 let activeCorner: { area: string; index: number } | null = null;
 
 let showGrid = true;
+let showAngles = true;
+try {
+  showAngles = localStorage.getItem("sketch:angles") !== "off";
+} catch {
+  /* storage unavailable */
+}
 try {
   showGrid = localStorage.getItem("sketch:grid") !== "off";
 } catch {
@@ -83,7 +89,7 @@ function drawCanvas() {
   const { width, height } = size();
   const sel = store.state.selection;
   const corner = activeCorner && sel?.area === activeCorner.area && !sel.stair && !sel.zone ? activeCorner.index : null;
-  canvas.innerHTML = renderSketch(result, { width, height, view, selection: sel, grid: showGrid, activeCorner: corner, selectedText });
+  canvas.innerHTML = renderSketch(result, { width, height, view, selection: sel, grid: showGrid, activeCorner: corner, selectedText, angles: showAngles });
 }
 
 function sketchBounds() {
@@ -1969,6 +1975,18 @@ if (!import.meta.env.DEV) {
     if (store.revision !== savedRevision) e.preventDefault();
   });
 }
+
+const anglesToggle = $<HTMLInputElement>("show-angles");
+anglesToggle.checked = showAngles;
+anglesToggle.addEventListener("change", () => {
+  showAngles = anglesToggle.checked;
+  try {
+    localStorage.setItem("sketch:angles", showAngles ? "on" : "off");
+  } catch {
+    /* storage unavailable */
+  }
+  drawCanvas();
+});
 
 const gridToggle = $<HTMLInputElement>("show-grid");
 gridToggle.checked = showGrid;

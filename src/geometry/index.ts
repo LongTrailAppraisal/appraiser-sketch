@@ -8,3 +8,4 @@ export * from "./templates.js";
 export * from "./zones.js";
 export * from "./edit.js";
 export * from "./copy.js";
+export * from "./angles.js";

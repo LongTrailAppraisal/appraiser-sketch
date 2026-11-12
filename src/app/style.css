@@ -224,6 +224,8 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
 #label-groups .mine button .x:hover { color: var(--warn); }
 .labels .area-label.selected .area-name { fill: var(--accent); }
 .corner { fill: var(--canvas); stroke: var(--muted); stroke-width: 1.2; cursor: grab; opacity: 0.85; }
+.labels text.angle-label { font-size: 10px; fill: var(--accent); font-weight: 600; }
+.labels text.angle-label.square { fill: var(--muted); font-weight: normal; }
 .wall-hit { stroke: transparent; stroke-width: 12; stroke-linecap: butt; }
 .wall-hit:hover { stroke: var(--accent-soft); }
 .corner:hover { stroke: var(--accent); }

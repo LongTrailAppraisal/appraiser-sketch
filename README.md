@@ -50,7 +50,8 @@ straight into the walls box. A length then an arrow key makes a wall (`30` ↑ �
 `U30`). `A` (or `CL`) closes the outline. With an area selected, drag a **wall** to slide it in or
 out (it stays square, in whole inches) or drag a **corner** to move it (it
 snaps to other corners and lines up with its neighbours; hold Alt for free
-movement); the walls text is rewritten to match. Click a corner and choose
+movement); the walls text is rewritten to match. The inside angle shows at each corner of
+the selected area (square corners in grey; turn off with Show › Angles). Click a corner and choose
 **Delete wall** to remove the wall leaving it and redraw from that corner;
 Backspace on the drawing, or Delete last wall, steps back one wall at a time.
 **Labels** (right side): click a name from Rooms, Garages & outbuildings or

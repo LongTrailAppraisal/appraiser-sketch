@@ -3,7 +3,7 @@
  * returns a string. Styling is by CSS class (see style.css) so it follows the theme.
  */
 
-import {
+import { cornerAngles, formatAngle,
   arcGeometry,
   flatten,
   formatFeetInches,
@@ -161,6 +161,8 @@ export interface RenderOptions {
   activeCorner?: number | null;
   /** Selected room label id. */
   selectedText?: string | null;
+  /** Show inside angles at the selected area's corners (screen only). */
+  angles?: boolean;
 }
 
 /** Where an area's label sits: outline centre plus the saved offset. */
@@ -244,6 +246,17 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
             `<line class="wall-hit" ${data} data-wall="${k}" x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}" style="cursor:${cur}"><title>Drag to move this wall</title></line>`,
           );
         });
+        if (opts.angles !== false && closed) {
+          for (const c of cornerAngles(r.shape.path)) {
+            const p = toScreen(v, c.at);
+            // Just inside the corner, along the line halving it.
+            const off = c.angle > 200 ? 13 : 17;
+            const x = p.x + c.bisector.x * off;
+            const y = p.y - c.bisector.y * off;
+            const square = Math.abs(c.angle - 90) < 0.05 || Math.abs(c.angle - 270) < 0.05;
+            labels.push(`<text class="angle-label${square ? " square" : ""}" x="${n(x)}" y="${n(y)}">${formatAngle(c.angle)}</text>`);
+          }
+        }
         // Corners: drag to move; click to pick one for Delete wall.
         const cs = [r.shape.path.start, ...segs.map((sg) => sg.to)].slice(0, closed ? segs.length : segs.length + 1);
         cs.forEach((c, i) => {
