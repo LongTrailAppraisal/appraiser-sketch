@@ -9,7 +9,9 @@ import {
   BUCKET_LABELS,
   formatLength,
   formatSqFt,
+  levelRank,
   type AreaResult,
+  type Bucket,
   type SketchResult,
 } from "../geometry/index.js";
 import { standaloneSvg } from "./svg.js";
@@ -45,6 +47,34 @@ function areaKindLabel(r: AreaResult): string {
   return BUCKET_LABELS[r.ansi.bucket];
 }
 
+/** The printed area list's groups, in order, by ANSI bucket. */
+export const PRINT_GROUPS: { name: string; buckets: Bucket[] }[] = [
+  { name: "Finished above grade", buckets: ["gla", "nonStandardAbove", "finishedNotConnected"] },
+  { name: "Unfinished above grade", buckets: ["unfinishedAbove"] },
+  { name: "Finished below grade", buckets: ["finishedBelow", "nonStandardBelow"] },
+  { name: "Unfinished below grade", buckets: ["unfinishedBelow"] },
+  { name: "Garages & carports", buckets: ["garage", "carport"] },
+  { name: "Amenities", buckets: ["porch", "deck", "patio", "breezeway", "other"] },
+  { name: "Not counted", buckets: ["excluded"] },
+];
+
+/**
+ * A structure's drawn areas grouped for the print: finished above grade
+ * (first floor first, then up), unfinished above, finished below, unfinished
+ * below, garages, amenities. Empty groups are left out.
+ */
+export function groupAreasForPrint(areas: AreaResult[]): { name: string; areas: AreaResult[] }[] {
+  const drawn = areas.filter((a) => a.shape.path.segments.length > 0);
+  return PRINT_GROUPS.map((g) => ({
+    name: g.name,
+    areas: drawn
+      .map((a, i) => ({ a, i }))
+      .filter(({ a }) => g.buckets.includes(a.ansi.bucket))
+      .sort((x, y) => (x.a.area.kind === "living" && y.a.area.kind === "living" ? levelRank(x.a.area.level) - levelRank(y.a.area.level) : 0) || x.i - y.i)
+      .map(({ a }) => a),
+  })).filter((g) => g.areas.length > 0);
+}
+
 export function printPageHtml(result: SketchResult): string {
   const m = result.sketch.meta;
   const svg = standaloneSvg(result, 720, 560);
@@ -64,12 +94,17 @@ export function printPageHtml(result: SketchResult): string {
   const structures = result.structures
     .filter((s) => s.areas.length > 0)
     .map((s) => {
-      const rows = s.areas
-        .filter((a) => a.shape.path.segments.length > 0)
+      const rows = groupAreasForPrint(s.areas)
         .map(
-          (a) =>
-            `<tr><td>${esc(a.area.name)}</td><td>${esc(areaKindLabel(a))}${a.area.kind === "living" ? ` · ${esc(levelName(a.area.level))}` : ""}</td>` +
-            `<td>${esc(areaFormula(a))}</td><td class="num">${formatSqFt(a.ansi.counted)}</td></tr>`,
+          (g) =>
+            `<tr class="group"><th colspan="4">${esc(g.name)}</th></tr>` +
+            g.areas
+              .map(
+                (a) =>
+                  `<tr><td>${esc(a.area.name)}</td><td>${esc(areaKindLabel(a))}${a.area.kind === "living" ? ` · ${esc(levelName(a.area.level))}` : ""}</td>` +
+                  `<td>${esc(areaFormula(a))}</td><td class="num">${formatSqFt(a.ansi.counted)}</td></tr>`,
+              )
+              .join(""),
         )
         .join("");
       const totals = BUCKETS.filter((b) => b !== "excluded" && s.reported[b] > 0)

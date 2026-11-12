@@ -96,3 +96,37 @@ describe("hidden dimensions", () => {
     expect(count(standaloneSvg(computeSketch(sk([1, 2])), 600, 400))).toBe(2);
   });
 });
+
+describe("printed area groups", async () => {
+  const { computeSketch } = await import("../src/geometry/index.js");
+  const { groupAreasForPrint } = await import("../src/export/print.js");
+  const area = (id: string, over: Partial<Area>): Area => ({
+    id, name: id, kind: "living", grade: "above", finished: true, level: "1", connected: true, ceiling: "full",
+    origin: { x: 0, y: 0 }, vectors: "R10 U10 L10 D10", zones: [], stairs: [], ...over,
+  });
+  it("orders by type, first floor first", () => {
+    const sk: Sketch = {
+      formatVersion: 1, meta: { ansi: true },
+      structures: [{ id: "s", name: "Dwelling", kind: "dwelling", areas: [
+        area("Deck", { kind: "deck" }),
+        area("Second floor", { level: "2" }),
+        area("Basement", { level: "basement", grade: "below", finished: false }),
+        area("Garage", { kind: "garage" }),
+        area("Rec room", { level: "basement", grade: "below" }),
+        area("First floor", { level: "1" }),
+        area("Attic storage", { level: "attic", finished: false }),
+        area("Porch", { kind: "porch" }),
+        area("Empty", { vectors: "" }),
+      ] }],
+    };
+    const g = groupAreasForPrint(computeSketch(sk).structures[0]!.areas);
+    expect(g.map((x) => [x.name, x.areas.map((a) => a.area.name)])).toEqual([
+      ["Finished above grade", ["First floor", "Second floor"]],
+      ["Unfinished above grade", ["Attic storage"]],
+      ["Finished below grade", ["Rec room"]],
+      ["Unfinished below grade", ["Basement"]],
+      ["Garages & carports", ["Garage"]],
+      ["Amenities", ["Deck", "Porch"]],
+    ]);
+  });
+});

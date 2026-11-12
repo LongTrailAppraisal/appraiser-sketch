@@ -1089,7 +1089,9 @@ function typeIntoWalls(ch: string) {
   if (vectors.disabled) return;
   vectors.focus();
   const end = vectors.value.length;
-  vectors.setRangeText(ch, end, end, "end");
+  // Start a new word after a finished one (A or CL closes; "a24" would be a typo).
+  const sep = /\b(?:a|cl|close)$/i.test(vectors.value) && /\S/.test(ch) ? " " : "";
+  vectors.setRangeText(sep + ch, end, end, "end");
   vectors.dispatchEvent(new Event("input"));
 }
 
