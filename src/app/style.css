@@ -217,7 +217,11 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
 .labels .area-label text { pointer-events: auto; cursor: move; }
 .labels text.room-label { font-size: 12px; fill: var(--ink); pointer-events: auto; cursor: move; }
 .labels text.room-label.selected { fill: var(--accent); font-weight: bold; }
-#label-chips button { font-size: 12px; }
+#label-groups details { margin-bottom: 6px; }
+#label-groups summary { font-size: 12px; color: var(--muted); cursor: pointer; margin-bottom: 4px; }
+#label-groups button { font-size: 12px; }
+#label-groups .mine button .x { margin-left: 5px; color: var(--muted); }
+#label-groups .mine button .x:hover { color: var(--warn); }
 .labels .area-label.selected .area-name { fill: var(--accent); }
 .corner { fill: var(--canvas); stroke: var(--muted); stroke-width: 1.2; cursor: pointer; opacity: 0.85; }
 .corner:hover { stroke: var(--accent); }

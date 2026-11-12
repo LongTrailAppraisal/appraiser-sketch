@@ -96,12 +96,35 @@ export interface TextLabel {
   at: Point;
 }
 
-/** Room names offered as one-click labels. */
-export const COMMON_LABELS = [
-  "Bedroom", "Primary Bedroom", "Full Bath", "3/4 Bath", "Half Bath", "Kitchen", "Living Room",
-  "Dining Room", "Family Room", "Den", "Office", "Laundry", "Mudroom", "Foyer", "Hall", "Closet",
-  "Walk-in Closet", "Pantry", "Utility", "Mechanical", "Storage", "Bonus Room", "Sunroom", "Rec Room",
+/** Names offered as one-click labels, in groups. */
+export const LABEL_GROUPS: { name: string; labels: string[] }[] = [
+  {
+    name: "Rooms",
+    labels: [
+      "Bedroom", "Primary Bedroom", "Full Bath", "3/4 Bath", "Half Bath", "Kitchen", "Living Room",
+      "Dining Room", "Family Room", "Den", "Office", "Laundry", "Mudroom", "Foyer", "Hall", "Closet",
+      "Walk-in Closet", "Pantry", "Utility", "Mechanical", "Storage", "Bonus Room", "Sunroom", "Rec Room",
+    ],
+  },
+  {
+    name: "Garages & outbuildings",
+    labels: [
+      "1-Car Garage", "2-Car Garage", "3-Car Garage", "Attached Garage", "Detached Garage", "Built-in Garage",
+      "Tandem Garage", "Carport", "1-Car Carport", "2-Car Carport", "Barn", "Pole Barn", "Horse Barn",
+      "Shed", "Storage Shed", "Workshop", "Lean-to", "Loft",
+    ],
+  },
+  {
+    name: "Decks, porches & patios",
+    labels: [
+      "Deck", "Covered Deck", "Open Porch", "Covered Porch", "Enclosed Porch", "Screened Porch",
+      "Three-Season Porch", "Farmer's Porch", "Patio", "Covered Patio", "Breezeway", "Balcony", "Stoop",
+    ],
+  },
 ];
+
+/** Every built-in label, flat. */
+export const COMMON_LABELS = LABEL_GROUPS.flatMap((g) => g.labels);
 
 export interface Sketch {
   formatVersion: number;

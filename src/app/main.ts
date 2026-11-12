@@ -25,7 +25,7 @@ import {
   TEMPLATES,
   checkTemplate,
   ZONE_BANDS,
-  COMMON_LABELS,
+  LABEL_GROUPS,
   stripZone,
   applyArrow,
   closeOutline,
@@ -1184,7 +1184,79 @@ function drawMeta() {
 let selectedText: string | null = null;
 const labelText = $<HTMLInputElement>("label-text");
 const labelCustom = $<HTMLInputElement>("label-custom");
-$("label-chips").innerHTML = COMMON_LABELS.map((t) => `<button data-label-text="${esc(t)}">${esc(t)}</button>`).join("");
+const labelGroups = $("label-groups");
+
+// "My labels": custom names the user chose to keep, saved in this browser.
+const MY_LABELS_KEY = "sketch:my-labels";
+const OPEN_GROUPS_KEY = "sketch:label-groups-open";
+function loadList(key: string, fallback: string[]): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? "null") as unknown;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function saveList(key: string, list: string[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {
+    /* storage unavailable */
+  }
+}
+let myLabels = loadList(MY_LABELS_KEY, []);
+const openGroups = new Set(loadList(OPEN_GROUPS_KEY, ["My labels", "Rooms"]));
+
+function drawLabelGroups() {
+  const chip = (t: string, mine = false) =>
+    `<button data-label-text="${esc(t)}">${esc(t)}${mine ? `<span class="x" data-forget="${esc(t)}" title="Remove from My labels">×</span>` : ""}</button>`;
+  const groups = [
+    ...(myLabels.length ? [{ name: "My labels", labels: myLabels, mine: true }] : []),
+    ...LABEL_GROUPS.map((g) => ({ ...g, mine: false })),
+  ];
+  labelGroups.innerHTML = groups
+    .map(
+      (g) =>
+        `<details data-group="${esc(g.name)}"${openGroups.has(g.name) ? " open" : ""} class="${g.mine ? "mine" : ""}"><summary>${esc(g.name)}</summary>` +
+        `<div class="chips">${g.labels.map((t) => chip(t, g.mine)).join("")}</div></details>`,
+    )
+    .join("");
+}
+drawLabelGroups();
+
+labelGroups.addEventListener(
+  "toggle",
+  (e) => {
+    const d = e.target as HTMLDetailsElement;
+    const name = d.getAttribute("data-group");
+    if (!name) return;
+    if (d.open) openGroups.add(name);
+    else openGroups.delete(name);
+    saveList(OPEN_GROUPS_KEY, [...openGroups]);
+  },
+  true,
+);
+
+function keepLabel(text: string) {
+  const name = text.trim();
+  if (!name) return;
+  if (myLabels.some((t) => t.toLowerCase() === name.toLowerCase())) {
+    say(`"${name}" is already in My labels`);
+    return;
+  }
+  myLabels = [...myLabels, name].sort((a, b) => a.localeCompare(b));
+  saveList(MY_LABELS_KEY, myLabels);
+  openGroups.add("My labels");
+  drawLabelGroups();
+  say(`Saved "${name}" to My labels`);
+}
+
+function forgetLabel(name: string) {
+  myLabels = myLabels.filter((t) => t !== name);
+  saveList(MY_LABELS_KEY, myLabels);
+  drawLabelGroups();
+  say(`Removed "${name}" from My labels`);
+}
 
 function selectText(id: string | null) {
   selectedText = id;
@@ -1229,9 +1301,23 @@ function deleteText() {
   say("Label deleted (Ctrl+Z to undo)");
 }
 
-$("label-chips").addEventListener("click", (e) => {
+labelGroups.addEventListener("click", (e) => {
+  const forget = (e.target as Element).closest("[data-forget]");
+  if (forget) {
+    forgetLabel(forget.getAttribute("data-forget")!);
+    return;
+  }
   const b = (e.target as Element).closest("[data-label-text]");
   if (b) addText(b.getAttribute("data-label-text")!);
+});
+$("btn-save-label").addEventListener("click", () => {
+  keepLabel(labelCustom.value);
+  addText(labelCustom.value);
+  labelCustom.value = "";
+});
+$("btn-keep-label").addEventListener("click", () => {
+  const t = (store.state.sketch.texts ?? []).find((x) => x.id === selectedText);
+  if (t) keepLabel(t.text);
 });
 $("btn-add-label").addEventListener("click", () => {
   addText(labelCustom.value);

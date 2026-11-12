@@ -270,16 +270,20 @@
           </div>
         </section>
         <section class="panel" id="labels-panel">
-          <h2>Room labels</h2>
-          <div id="label-chips" class="chips"></div>
+          <h2>Labels</h2>
+          <div id="label-groups"></div>
           <div class="form">
-            <div class="pair">
-              <label>Custom <input id="label-custom" type="text" placeholder="e.g. Sauna" /></label>
-              <button id="btn-add-label" title="Put this label on the sketch">Add</button>
+            <label>Custom <input id="label-custom" type="text" placeholder="e.g. Sauna" /></label>
+            <div class="row-buttons">
+              <button id="btn-add-label" title="Put this label on the sketch (Enter)">Add</button>
+              <button id="btn-save-label" title="Keep this name under My labels, in this browser">Add &amp; save to My labels</button>
             </div>
             <div id="label-edit" class="form hidden">
               <label>Selected label <input id="label-text" type="text" /></label>
-              <div class="row-buttons"><button id="btn-delete-label" class="danger">Delete label</button></div>
+              <div class="row-buttons">
+                <button id="btn-keep-label" title="Keep this name under My labels">Save to My labels</button>
+                <button id="btn-delete-label" class="danger">Delete label</button>
+              </div>
             </div>
             <div class="note-small">Click a name to put it on the sketch, then drag it into place.</div>
           </div>
