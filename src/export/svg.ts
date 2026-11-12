@@ -7,7 +7,10 @@
 import { bounds, flatten, stairDrawing, type Bounds, type SketchResult } from "../geometry/index.js";
 import { labelPoint, renderSketch, type View } from "../app/render.js";
 
-const STYLE = `
+/** Print styles; text sizes are the screen's, times `k`, so labels keep their place relative to the walls. */
+const style = (k: number) => {
+  const px = (v: number) => `${(v * k).toFixed(2)}px`;
+  return `
 text { font-family: Arial, Helvetica, sans-serif; }
 .area { stroke: #111; stroke-width: 1.5; fill: #fff; stroke-linejoin: round; }
 .area.kind-deck { stroke-dasharray: 6 4; }
@@ -15,20 +18,21 @@ text { font-family: Arial, Helvetica, sans-serif; }
 .zone { fill: none; stroke: #777; stroke-width: 0.8; stroke-dasharray: 3 3; }
 .zone-low { fill: #ececec; }
 .zone-reduced { fill: #f6f6f6; }
-.zone-label { font-size: 9px; font-style: italic; fill: #444; }
+.zone-label { font-size: ${px(10)}; font-style: italic; fill: #444; }
 .zone-opening { fill: #fbeaea; }
 .stair { fill: #fff; stroke: #111; stroke-width: 1; }
 .tread { stroke: #666; stroke-width: 0.7; }
 .stair-arrow { fill: none; stroke: #111; stroke-width: 1; }
 .stair-head { fill: #111; }
-.stair-label { font-size: 8px; font-weight: bold; fill: #111; text-anchor: middle; dominant-baseline: middle; }
+.stair-label { font-size: ${px(9)}; font-weight: bold; fill: #111; text-anchor: middle; dominant-baseline: middle; }
 .misclosure { stroke: #b3261e; stroke-width: 1.2; stroke-dasharray: 4 3; }
-.labels text { fill: #111; text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
-.dim { fill: #333; font-size: 10px; }
-.area-name { font-size: 11px; font-weight: bold; }
-.area-size { font-size: 10px; fill: #333; }
-.room-label { font-size: 10px; fill: #111; }
+.labels text { fill: #111; text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: #fff; stroke-width: ${px(3)}; stroke-linejoin: round; }
+.dim { fill: #333; font-size: ${px(11)}; }
+.area-name { font-size: ${px(12)}; font-weight: bold; }
+.area-size { font-size: ${px(11)}; fill: #333; }
+.room-label { font-size: ${px(12)}; fill: #111; }
 `;
+};
 
 /** Bounds of everything drawn: outlines, stairs and moved labels. */
 export function drawingBounds(result: SketchResult): Bounds | null {
@@ -65,9 +69,15 @@ export function fitView(b: Bounds, width: number, height: number, pad = 28, maxS
   return { scale, ox: width / 2 - cx * scale, oy: height / 2 + cy * scale };
 }
 
-export function standaloneSvg(result: SketchResult, width: number, height: number): string {
+/**
+ * `screenScale` is the on-screen zoom (px per foot). Text is then sized in
+ * the same proportion to the building as on screen, so labels you placed
+ * stay where you put them; small, but never below half the screen size.
+ */
+export function standaloneSvg(result: SketchResult, width: number, height: number, screenScale?: number): string {
   const b = drawingBounds(result);
   const view = b ? fitView(b, width, height) : { scale: 10, ox: width / 2, oy: height / 2 };
-  const svg = renderSketch(result, { width, height, view, selection: null, grid: false, interactive: false });
-  return svg.replace(/^<svg([^>]*)>/, `<svg$1><style>${STYLE}</style><rect width="100%" height="100%" fill="#fff"/>`);
+  const k = screenScale && screenScale > 0 ? Math.min(1.5, Math.max(0.5, view.scale / screenScale)) : 1;
+  const svg = renderSketch(result, { width, height, view, selection: null, grid: false, interactive: false, textScale: k });
+  return svg.replace(/^<svg([^>]*)>/, `<svg$1><style>${style(k)}</style><rect width="100%" height="100%" fill="#fff"/>`);
 }

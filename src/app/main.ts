@@ -155,6 +155,15 @@ function manualView() {
   say("Auto fit off — F or Fit to fit again");
 }
 
+/** Zoom Fit would use on this screen (px per foot): print text is sized against it, not the current zoom. */
+function fittedScale(): number {
+  const b = sketchBounds();
+  const { width, height } = size();
+  if (!b) return 12;
+  const pad = 60;
+  return Math.min((width - 2 * pad) / Math.max(b.maxX - b.minX, 10), (height - 2 * pad) / Math.max(b.maxY - b.minY, 10), 40);
+}
+
 function fit() {
   const b = sketchBounds();
   const { width, height } = size();
@@ -212,7 +221,27 @@ type Drag =
 
 let drag: Drag | null = null;
 let dragSeq = 0;
-const GRID_SNAP = 0.5; // feet
+/**
+ * Grid snapping for mouse moves: the length unit (1" or 0.1'), 6"/half a
+ * foot, a whole foot, or off (corners still snap). A per-viewer setting.
+ */
+type SnapMode = "unit" | "half" | "foot" | "off";
+const SNAP_KEY = "sketch:snap";
+let snapMode: SnapMode = "unit";
+try {
+  const v = localStorage.getItem(SNAP_KEY);
+  if (v === "unit" || v === "half" || v === "foot" || v === "off") snapMode = v;
+} catch {
+  /* storage unavailable */
+}
+function snapStep(): number {
+  return snapMode === "unit" ? smallStep() : snapMode === "half" ? 0.5 : snapMode === "foot" ? 1 : 0;
+}
+/** Round a length in feet to the snap grid (no rounding when snapping is off). */
+function snap(v: number): number {
+  const step = snapStep();
+  return step > 0 ? Math.round(Math.round(v / step) * step * 1e6) / 1e6 : v;
+}
 const VERTEX_SNAP_PX = 10;
 
 /** Corners of every area outline, optionally leaving one area out. */
@@ -246,7 +275,7 @@ function snapMove(mine: Point[], targets: Point[], origin: Point, proposed: Poin
     }
   }
   if (best) return { x: proposed.x + best.ox, y: proposed.y + best.oy };
-  return { x: Math.round(proposed.x / GRID_SNAP) * GRID_SNAP, y: Math.round(proposed.y / GRID_SNAP) * GRID_SNAP };
+  return { x: snap(proposed.x), y: snap(proposed.y) };
 }
 
 function dragOrigin(sel: Selection): Point | null {
@@ -396,10 +425,10 @@ canvas.addEventListener("pointermove", (e) => {
       d.moved = true;
       activeCorner = null;
     }
-    const inch = (v: number) => Math.round(v * 12) / 12;
+    const inch = snap;
     let delta: Point;
     if (d.normal) {
-      // Slide the wall square to itself, in whole inches.
+      // Slide the wall square to itself, in grid steps.
       const along = inch((w.x - d.start.x) * d.normal.x + (w.y - d.start.y) * d.normal.y);
       delta = { x: d.normal.x * along, y: d.normal.y * along };
     } else {
@@ -439,7 +468,7 @@ canvas.addEventListener("pointermove", (e) => {
   }
   if (drag.kind === "text") {
     const d = drag;
-    const inch = (v: number) => Math.round(v * 12) / 12;
+    const inch = snap;
     const next = { x: inch(d.at.x + w.x - d.start.x), y: inch(d.at.y + w.y - d.start.y) };
     store.update(
       (draft) => {
@@ -453,7 +482,7 @@ canvas.addEventListener("pointermove", (e) => {
   if (drag.kind === "label") {
     const d = drag;
     d.moved = true;
-    const inch = (v: number) => Math.round(v * 12) / 12;
+    const inch = snap;
     const next = { x: inch(d.offset.x + w.x - d.start.x), y: inch(d.offset.y + w.y - d.start.y) };
     store.update(
       (draft) => {
@@ -1574,6 +1603,17 @@ unitsSelect.addEventListener("change", () => {
   say(u === "decimal" ? "Lengths in decimal feet (walls you already typed stay as typed)" : "Lengths in feet-inches (walls you already typed stay as typed)");
 });
 
+const snapSelect = $<HTMLSelectElement>("snap");
+snapSelect.value = snapMode;
+snapSelect.addEventListener("change", () => {
+  snapMode = snapSelect.value as SnapMode;
+  try {
+    localStorage.setItem(SNAP_KEY, snapMode);
+  } catch {
+    /* storage unavailable */
+  }
+});
+
 // Close the settings menu when clicking elsewhere.
 document.addEventListener("pointerdown", (e) => {
   const st = $<HTMLDetailsElement>("settings");
@@ -1675,7 +1715,7 @@ $("btn-delete-label").addEventListener("click", deleteText);
 // ---------- print and PNG ----------
 
 function printSketch() {
-  $("print-root").innerHTML = printPageHtml(result);
+  $("print-root").innerHTML = printPageHtml(result, fittedScale());
   const img = $("print-root").querySelector("img");
   const go = () => window.print();
   if (img && !img.complete) img.addEventListener("load", go, { once: true });
@@ -1691,7 +1731,7 @@ function exportName(ext: string): string {
 
 $("btn-png").addEventListener("click", async () => {
   try {
-    const blob = await sketchPng(result);
+    const blob = await sketchPng(result, 1600, 1200, fittedScale());
     download(blob, exportName("png"));
     say("PNG downloaded");
   } catch {
@@ -2271,4 +2311,4 @@ redraw();
 requestAnimationFrame(() => fit());
 
 // Exposed for debugging and automated checks.
-(window as unknown as { sketchApp: unknown }).sketchApp = { store, get result() { return result; }, printHtml: () => printPageHtml(result) };
+(window as unknown as { sketchApp: unknown }).sketchApp = { store, get result() { return result; }, printHtml: () => printPageHtml(result, fittedScale()) };

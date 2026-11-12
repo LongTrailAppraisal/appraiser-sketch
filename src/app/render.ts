@@ -72,19 +72,19 @@ function gridMarkup(v: View, width: number, height: number): string {
   return `<g class="grid-layer">${lines.join("")}</g>`;
 }
 
-function dimensionLabels(r: AreaResult, v: View, pick: { data: string; picked: number | null } | null = null): string {
+function dimensionLabels(r: AreaResult, v: View, pick: { data: string; picked: number | null } | null = null, ts = 1): string {
   const path = r.shape.path;
   if (path.segments.length === 0) return "";
   const orient = orientation(path);
   const out: string[] = [];
-  const fontPx = 11;
+  const fontPx = 11 * ts;
   const hidden = new Set(r.area.hiddenDims ?? []);
   for (const [k, seg] of path.segments.entries()) {
     if (hidden.has(k)) continue;
     const a = toScreen(v, seg.from);
     const b = toScreen(v, seg.to);
     const len = Math.hypot(b.x - a.x, b.y - a.y);
-    if (len < 24) continue; // too short to label legibly
+    if (len < 24 * ts) continue; // too short to label legibly
     const dx = seg.to.x - seg.from.x;
     const dy = seg.to.y - seg.from.y;
     const wl = Math.hypot(dx, dy);
@@ -97,7 +97,7 @@ function dimensionLabels(r: AreaResult, v: View, pick: { data: string; picked: n
       const ang = g.startAngle + g.sweep / 2;
       mid = { x: g.center.x + g.radius * Math.cos(ang), y: g.center.y + g.radius * Math.sin(ang) };
     }
-    const off = 9 / v.scale;
+    const off = (9 * ts) / v.scale;
     const p = toScreen(v, { x: mid.x + nx * off, y: mid.y + ny * off });
     let deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
     if (deg > 90) deg -= 180;
@@ -165,6 +165,8 @@ export interface RenderOptions {
   selectedText?: string | null;
   /** Show inside angles at the selected area's corners (screen only). */
   angles?: boolean;
+  /** Text size and spacing multiplier (print matches the on-screen proportions). */
+  textScale?: number;
   /** A dimension or area label picked for hiding with Delete. */
   picked?: { kind: "dim" | "label"; area: string; wall?: number } | null;
 }
@@ -178,6 +180,7 @@ export function labelPoint(r: AreaResult): Point {
 export function renderSketch(result: SketchResult, opts: RenderOptions): string {
   const { view: v, width, height, selection } = opts;
   const interactive = opts.interactive ?? true;
+  const ts = opts.textScale ?? 1;
   const meta = result.sketch.meta;
   const parts: string[] = opts.grid === false ? [] : [gridMarkup(v, width, height)];
   const labels: string[] = [];
@@ -286,14 +289,14 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
       if (pts.length >= 3) {
         if (meta.showDims !== false && !r.area.hideDims) {
           const picked = opts.picked?.area === r.area.id && opts.picked.kind === "dim" ? (opts.picked.wall ?? null) : null;
-          labels.push(dimensionLabels(r, v, interactive ? { data, picked } : null));
+          labels.push(dimensionLabels(r, v, interactive ? { data, picked } : null, ts));
         }
         if (meta.showLabels !== false && !r.area.hideLabel) {
           const c = toScreen(v, labelPoint(r));
           labels.push(
             `<g class="area-label${selected ? " selected" : ""}${opts.picked?.kind === "label" && opts.picked.area === r.area.id ? " picked" : ""}" ${data} data-label="1">` +
-              `<text class="area-name" x="${n(c.x)}" y="${n(c.y - 2)}">${esc(r.area.name)}</text>` +
-              `<text class="area-size" x="${n(c.x)}" y="${n(c.y + 12)}">${esc(areaSizeText(r))}</text>` +
+              `<text class="area-name" x="${n(c.x)}" y="${n(c.y - 2 * ts)}">${esc(r.area.name)}</text>` +
+              `<text class="area-size" x="${n(c.x)}" y="${n(c.y + 12 * ts)}">${esc(areaSizeText(r))}</text>` +
               `<title>Drag to move the label; double-click to put it back; click, then Delete to hide it</title></g>`,
           );
         }

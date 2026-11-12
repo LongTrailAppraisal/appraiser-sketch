@@ -50,7 +50,8 @@ F to fit. Click a stair to select it, then drag it or its round handles
 straight into the walls box. A length then an arrow key makes a wall (`30` ↑ →
 `U30`); arrows along that wall then lengthen or shorten it one step (1", or
 0.1' in decimal feet; Shift: 1') until Enter moves on to the next wall.
-⚙ Settings › Lengths switches between feet-inches and decimal feet for
+⚙ Settings › Mouse snaps to sets the grid for dragging (1" or 0.1' by
+default, 6", 1', or off). ⚙ Settings › Lengths switches between feet-inches and decimal feet for
 dimensions, messages, the print and new walls. `A` (or `CL`) closes the outline. With an area selected, drag a **wall** to slide it in or
 out (it stays square, in whole inches) or drag a **corner** to move it (it
 snaps to other corners and lines up with its neighbours; hold Alt for free

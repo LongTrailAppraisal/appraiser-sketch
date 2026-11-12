@@ -75,9 +75,9 @@ export function groupAreasForPrint(areas: AreaResult[]): { name: string; areas: 
   })).filter((g) => g.areas.length > 0);
 }
 
-export function printPageHtml(result: SketchResult): string {
+export function printPageHtml(result: SketchResult, screenScale?: number): string {
   const m = result.sketch.meta;
-  const svg = standaloneSvg(result, 720, 560);
+  const svg = standaloneSvg(result, 720, 560, screenScale);
   const img = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   const header = [
     ["Property address", m.subject ?? ""],
@@ -137,8 +137,8 @@ export function printPageHtml(result: SketchResult): string {
 }
 
 /** Render the standalone SVG to a PNG blob at the given pixel size (2× for sharp text). */
-export async function sketchPng(result: SketchResult, width = 1600, height = 1200): Promise<Blob> {
-  const svg = standaloneSvg(result, width / 2, height / 2);
+export async function sketchPng(result: SketchResult, width = 1600, height = 1200, screenScale?: number): Promise<Blob> {
+  const svg = standaloneSvg(result, width / 2, height / 2, screenScale);
   const img = new Image();
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   await img.decode();
