@@ -5,7 +5,25 @@
  * in localStorage (best effort; may be unavailable).
  */
 
-import { FORMAT_VERSION, type Area, type Sketch, type Structure, type TextLabel } from "../geometry/index.js";
+import {
+  BUCKETS,
+  FORMAT_VERSION,
+  STAIR_TYPES,
+  STRUCTURE_KINDS,
+  ZONE_BANDS,
+  defaultStair,
+  type Area,
+  type AreaKind,
+  type CeilingBand,
+  type Override,
+  type Point,
+  type Sketch,
+  type SketchMeta,
+  type Stair,
+  type Structure,
+  type TextLabel,
+  type Zone,
+} from "../geometry/index.js";
 import { newArea, newId } from "./store.js";
 
 const DRAFT_KEY = "sketch:draft";
@@ -25,7 +43,149 @@ const PICKER_TYPES = [{ description: "Sketch", accept: { "application/json": [".
 
 export class SketchFileError extends Error {}
 
-/** Parse and normalize a sketch file; throws SketchFileError with a readable message. */
+type Raw = Record<string, unknown>;
+
+/** A file that parses as JSON but would not draw: say which part is wrong rather than load it. */
+function damaged(where: string): never {
+  throw new SketchFileError(`This sketch file is damaged (${where}).`);
+}
+
+const isObject = (v: unknown): v is Raw => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** Field readers: a missing field takes its default (older files); one of the wrong type is damage. */
+function str(o: Raw, key: string, where: string): string | undefined {
+  const v = o[key];
+  if (v === undefined) return undefined;
+  return typeof v === "string" ? v : damaged(`${where}: ${key}`);
+}
+function bool(o: Raw, key: string, where: string): boolean | undefined {
+  const v = o[key];
+  if (v === undefined) return undefined;
+  return typeof v === "boolean" ? v : damaged(`${where}: ${key}`);
+}
+function oneOf<T extends string>(o: Raw, key: string, allowed: readonly T[], where: string): T | undefined {
+  const v = o[key];
+  if (v === undefined) return undefined;
+  return allowed.includes(v as T) ? (v as T) : damaged(`${where}: ${key}`);
+}
+function num(o: Raw, key: string, where: string): number | undefined {
+  const v = o[key];
+  if (v === undefined) return undefined;
+  return typeof v === "number" && Number.isFinite(v) ? v : damaged(`${where}: ${key}`);
+}
+function point(o: Raw, key: string, where: string): Point | undefined {
+  const v = o[key];
+  if (v === undefined) return undefined;
+  if (!isObject(v) || typeof v.x !== "number" || typeof v.y !== "number" || !Number.isFinite(v.x) || !Number.isFinite(v.y)) {
+    return damaged(`${where}: ${key}`);
+  }
+  return { x: v.x, y: v.y };
+}
+function list(o: Raw, key: string, where: string): Raw[] {
+  const v = o[key];
+  if (v === undefined) return [];
+  if (!Array.isArray(v) || !v.every(isObject)) return damaged(`${where}: ${key}`);
+  return v as Raw[];
+}
+/** Drop undefined values, so defaults apply and no optional field is stored as undefined. */
+function defined<T extends object>(o: T): { [K in keyof T]: Exclude<T[K], undefined> } {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as { [K in keyof T]: Exclude<T[K], undefined> };
+}
+
+const AREA_KINDS: readonly AreaKind[] = ["living", "garage", "porch", "deck", "patio", "carport", "breezeway", "other"];
+const CEILINGS: readonly CeilingBand[] = ["full", "reduced", "low"];
+
+function readZone(z: Raw, where: string): Zone {
+  return {
+    id: str(z, "id", where) ?? newId("z"),
+    ...defined({ name: str(z, "name", where) }),
+    band: oneOf(z, "band", ZONE_BANDS.map((b) => b.value), where) ?? damaged(`${where}: band`),
+    origin: point(z, "origin", where) ?? damaged(`${where}: origin`),
+    vectors: str(z, "vectors", where) ?? "",
+  };
+}
+
+function readStair(st: Raw, where: string): Stair {
+  const positive = (key: string) => {
+    const v = num(st, key, where);
+    return v === undefined || v > 0 ? v : damaged(`${where}: ${key}`);
+  };
+  return defaultStair(
+    defined({
+      id: str(st, "id", where) ?? newId("t"),
+      type: oneOf(st, "type", STAIR_TYPES.map((t) => t.value), where),
+      origin: point(st, "origin", where),
+      rotation: num(st, "rotation", where),
+      width: positive("width"),
+      run1: positive("run1"),
+      run2: positive("run2"),
+      turn: oneOf(st, "turn", ["left", "right"] as const, where),
+      direction: oneOf(st, "direction", ["up", "down"] as const, where),
+    }),
+  );
+}
+
+function readArea(a: Raw, where: string): Area {
+  let override: Override | undefined;
+  if (a.override !== undefined) {
+    if (!isObject(a.override)) damaged(`${where}: override`);
+    const o = a.override as Raw;
+    override = { bucket: oneOf(o, "bucket", BUCKETS, where) ?? damaged(`${where}: override`), note: str(o, "note", where) ?? "" };
+  }
+  let hiddenDims: number[] | undefined;
+  if (a.hiddenDims !== undefined) {
+    const h = a.hiddenDims;
+    if (!Array.isArray(h) || !h.every((k) => Number.isInteger(k) && k >= 0)) damaged(`${where}: hiddenDims`);
+    if ((h as number[]).length) hiddenDims = h as number[];
+  }
+  return newArea(
+    defined({
+      id: str(a, "id", where) ?? newId("a"),
+      name: str(a, "name", where),
+      kind: oneOf(a, "kind", AREA_KINDS, where),
+      grade: oneOf(a, "grade", ["above", "below"] as const, where),
+      finished: bool(a, "finished", where),
+      level: str(a, "level", where),
+      connected: bool(a, "connected", where),
+      ceiling: oneOf(a, "ceiling", CEILINGS, where),
+      origin: point(a, "origin", where),
+      vectors: str(a, "vectors", where),
+      zones: list(a, "zones", where).map((z, i) => readZone(z, `${where}, zone ${i + 1}`)),
+      stairs: list(a, "stairs", where).map((st, i) => readStair(st, `${where}, stair ${i + 1}`)),
+      override,
+      label: point(a, "label", where),
+      hideLabel: bool(a, "hideLabel", where) || undefined,
+      hideDims: bool(a, "hideDims", where) || undefined,
+      hiddenDims,
+    }),
+  );
+}
+
+function readMeta(raw: unknown): SketchMeta {
+  if (raw === undefined) return { ansi: true };
+  if (!isObject(raw)) damaged("header");
+  const m = raw as Raw;
+  return {
+    ansi: bool(m, "ansi", "header") ?? true,
+    ...defined({
+      subject: str(m, "subject", "header"),
+      client: str(m, "client", "header"),
+      borrower: str(m, "borrower", "header"),
+      fileNumber: str(m, "fileNumber", "header"),
+      appraiser: str(m, "appraiser", "header"),
+      date: str(m, "date", "header"),
+      showDims: bool(m, "showDims", "header"),
+      showLabels: bool(m, "showLabels", "header"),
+    }),
+  };
+}
+
+/**
+ * Parse and check a sketch file; throws SketchFileError with a readable
+ * message. Every field is checked before the sketch is handed to the app, so a
+ * damaged or hand-edited file is refused here instead of breaking the drawing
+ * (and then being kept as the recovery draft).
+ */
 export function parseSketchFile(text: string): Sketch {
   let raw: unknown;
   try {
@@ -33,25 +193,32 @@ export function parseSketchFile(text: string): Sketch {
   } catch {
     throw new SketchFileError("This file is not a sketch (not valid JSON).");
   }
-  const o = raw as Partial<Sketch>;
-  if (typeof o !== "object" || o === null || !Array.isArray(o.structures)) {
+  if (!isObject(raw) || !Array.isArray(raw.structures)) {
     throw new SketchFileError("This file is not a sketch (no structures).");
   }
-  if (typeof o.formatVersion !== "number" || o.formatVersion > FORMAT_VERSION) {
-    throw new SketchFileError(`This sketch was saved by a newer version (format ${String(o.formatVersion)}).`);
+  if (typeof raw.formatVersion !== "number") {
+    throw new SketchFileError("This file is not a sketch (no format version).");
   }
-  const structures: Structure[] = o.structures.map((s: Partial<Structure>) => ({
-    id: typeof s.id === "string" ? s.id : newId("s"),
-    name: typeof s.name === "string" ? s.name : "Structure",
-    kind: s.kind ?? "dwelling",
-    areas: Array.isArray(s.areas) ? s.areas.map((a: Partial<Area>) => newArea({ ...a, id: a.id ?? newId("a") })) : [],
-  }));
-  const texts: TextLabel[] = Array.isArray(o.texts)
-    ? o.texts
-        .filter((t) => t && typeof t.text === "string" && t.at && Number.isFinite(t.at.x) && Number.isFinite(t.at.y))
+  if (raw.formatVersion > FORMAT_VERSION) {
+    throw new SketchFileError(`This sketch was saved by a newer version (format ${String(raw.formatVersion)}).`);
+  }
+  const structures: Structure[] = raw.structures.map((s: unknown, i: number) => {
+    const where = `structure ${i + 1}`;
+    if (!isObject(s)) return damaged(where);
+    return {
+      id: str(s, "id", where) ?? newId("s"),
+      name: str(s, "name", where) ?? "Structure",
+      kind: oneOf(s, "kind", STRUCTURE_KINDS.map((k) => k.value), where) ?? "dwelling",
+      areas: list(s, "areas", where).map((a, j) => readArea(a, `${where}, area ${j + 1}`)),
+    };
+  });
+  // Room labels are decoration: a bad one is dropped rather than refusing the file.
+  const texts: TextLabel[] = Array.isArray(raw.texts)
+    ? (raw.texts as unknown[])
+        .filter((t): t is Raw & { text: string; at: Point } => isObject(t) && typeof t.text === "string" && isObject(t.at) && Number.isFinite(t.at.x) && Number.isFinite(t.at.y))
         .map((t) => ({ id: typeof t.id === "string" ? t.id : newId("t"), text: t.text, at: { x: t.at.x, y: t.at.y } }))
     : [];
-  return { formatVersion: FORMAT_VERSION, meta: { ansi: true, ...(o.meta ?? {}) }, structures, texts };
+  return { formatVersion: FORMAT_VERSION, meta: readMeta(raw.meta), structures, texts };
 }
 
 export function serialize(sketch: Sketch): string {
@@ -156,11 +323,30 @@ export function saveDraft(sketch: Sketch): void {
   }
 }
 
+/** Where a draft that could not be read is kept, so it is never simply lost. */
+const REJECTED_DRAFT_KEY = "sketch:draft-rejected";
+let draftRejected = false;
+
+/** True if the draft found at startup could not be read (a copy was kept in this browser). */
+export function draftWasRejected(): boolean {
+  return draftRejected;
+}
+
 export function loadDraft(): Sketch | null {
+  let text: string | null = null;
   try {
-    const text = localStorage.getItem(DRAFT_KEY);
+    text = localStorage.getItem(DRAFT_KEY);
     return text ? parseSketchFile(text) : null;
   } catch {
+    // The next edit overwrites the draft, so set the unreadable one aside first.
+    if (text) {
+      draftRejected = true;
+      try {
+        localStorage.setItem(REJECTED_DRAFT_KEY, text);
+      } catch {
+        /* storage unavailable */
+      }
+    }
     return null;
   }
 }

@@ -32,6 +32,7 @@ import {
   closeOutline,
   deleteWall,
   moveCorners,
+  remapHiddenDims,
   adjustLastWall,
   smallStep,
   lengthStyle,
@@ -53,7 +54,7 @@ import {
 } from "../geometry/index.js";
 import { levelName, totalGroups, totalsText } from "../export/text.js";
 import { printPageHtml, sketchPng } from "../export/print.js";
-import { FileManager, SketchFileError, download, loadDraft, saveDraft } from "./files.js";
+import { FileManager, SketchFileError, download, draftWasRejected, loadDraft, saveDraft } from "./files.js";
 import { exportLabels, mergeLabels, parseLabelsFile } from "./labels.js";
 import { centroid, renderSketch, toWorld, type View } from "./render.js";
 import { Store, findArea, newArea, newId, newSketch, newStructure, type Selection } from "./store.js";
@@ -81,9 +82,18 @@ let external = true;
 
 const canvas = $<HTMLDivElement>("canvas");
 
-function size() {
+function measure() {
   const r = canvas.getBoundingClientRect();
   return { width: Math.max(1, Math.round(r.width)), height: Math.max(1, Math.round(r.height)) };
+}
+/**
+ * The drawing's size in pixels. Kept from the last resize rather than measured
+ * on every redraw: measuring straight after the page has been rewritten makes
+ * the browser lay the whole page out again, which was over half of each redraw.
+ */
+let canvasSize: { width: number; height: number } | null = null;
+function size() {
+  return (canvasSize ??= measure());
 }
 
 /** Corner of the selected area picked for Open here (UI state, not saved). */
@@ -211,6 +221,8 @@ type Drag =
       /** Corner positions at drag start, by index. */
       base: Point[];
       vectors: string;
+      /** Hidden dimensions at drag start (wall numbers of `vectors`). */
+      hidden: number[] | undefined;
       origin: Point;
       start: Point;
       startPx: Point;
@@ -327,7 +339,7 @@ canvas.addEventListener("pointerdown", (e) => {
     }
     dragSeq += 1;
     drag = {
-      kind: "corner", sel, corners, base, vectors: f.area.vectors, origin: { ...f.area.origin },
+      kind: "corner", sel, corners, base, vectors: f.area.vectors, hidden: f.area.hiddenDims, origin: { ...f.area.origin },
       start: toWorld(view, p), startPx: { x: e.clientX, y: e.clientY }, normal, moved: false, key: `corner:${sel.area}:${dragSeq}`,
     };
     return;
@@ -462,6 +474,7 @@ canvas.addEventListener("pointermove", (e) => {
         if (!f) return;
         f.area.vectors = r.vectors;
         f.area.origin = r.origin;
+        setHiddenDims(f.area, remapHiddenDims(d.hidden, r.walls));
       },
       { coalesce: d.key },
     );
@@ -628,7 +641,10 @@ canvas.addEventListener("dblclick", (e) => {
 });
 canvas.addEventListener("pointercancel", endDrag);
 
-new ResizeObserver(() => drawCanvas()).observe(canvas);
+new ResizeObserver(() => {
+  canvasSize = measure();
+  drawCanvas();
+}).observe(canvas);
 
 // ---------- tree ----------
 
@@ -743,6 +759,12 @@ function drawProps() {
   props.resetLabel.disabled = !area.label || !!area.hideLabel;
   sync(sprops.name, structure.name);
   sync(sprops.kind, structure.kind);
+}
+
+/** Store an area's hidden dimensions (no list at all when none are hidden). */
+function setHiddenDims(a: Area, hidden: number[]) {
+  if (hidden.length) a.hiddenDims = hidden;
+  else delete a.hiddenDims;
 }
 
 function editArea(fn: (a: ReturnType<typeof newArea>) => void, coalesce?: string) {
@@ -1351,6 +1373,7 @@ function nudgeCorner(dir: "up" | "down" | "left" | "right", step: number) {
   editArea((a) => {
     a.vectors = r.vectors;
     a.origin = r.origin;
+    setHiddenDims(a, remapHiddenDims(a.hiddenDims, r.walls));
   }, `nudge-${c.area}-${c.index}`);
 }
 
@@ -1366,6 +1389,7 @@ function deleteWallAction(): boolean {
   editArea((a) => {
     a.vectors = r.vectors;
     a.origin = r.origin;
+    setHiddenDims(a, remapHiddenDims(a.hiddenDims, r.walls));
   });
   external = true;
   drawVectorBar();
@@ -1433,6 +1457,7 @@ $("tpl-apply").addEventListener("click", () => {
   if (!r) return;
   editArea((a) => {
     a.vectors = r.vectors;
+    delete a.hiddenDims; // a new outline: the old wall numbers mean nothing
     if (r.kind) a.kind = r.kind;
   });
   tpl.box.open = false;
@@ -1986,7 +2011,10 @@ $("copy-walls-list").addEventListener("click", (e) => {
   $<HTMLDetailsElement>("copy-walls").open = false;
   const src = store.state.sketch.structures.flatMap((s) => s.areas).find((a) => a.id === fromId);
   if (!src) return;
-  editArea((a) => (a.vectors = src.vectors));
+  editArea((a) => {
+    a.vectors = src.vectors;
+    delete a.hiddenDims;
+  });
   say(`Walls copied from ${src.name} — edit any that differ`);
 });
 
@@ -2332,6 +2360,7 @@ store.subscribe((st) => {
 });
 redraw();
 requestAnimationFrame(() => fit());
+if (draftWasRejected()) say("The last draft could not be read, so a blank sketch was started (a copy of the draft was kept)");
 
 // Exposed for debugging and automated checks.
 (window as unknown as { sketchApp: unknown }).sketchApp = { store, get result() { return result; }, printHtml: () => printPageHtml(result, fittedScale()) };

@@ -4,22 +4,62 @@
  */
 
 import { closure, type Point } from "./path.js";
-import { formatLength, lengthStyle, parseLength } from "./units.js";
+import { formatLength, lengthStyle, parseLength, roundTo } from "./units.js";
 import { parseVectors } from "./vectors.js";
+
+/**
+ * A length written into a wall token. Unlike the lengths shown on screen it
+ * is never rounded to the inch, so an outline that closed before a rewrite
+ * still closes after it: whole inches where they fit (24'6"), then sixteenths
+ * (24'6-1/2"), then decimal inches (7'0.853"). Decimal feet keep four places.
+ */
+export function tokenLength(feet: number): string {
+  if (lengthStyle() === "decimal") return `${roundTo(feet, 4)}'`;
+  const inches = feet * 12;
+  if (Math.abs(inches - Math.round(inches)) < 1e-4) {
+    // Under a foot reads better as inches alone: 3" rather than 0'3".
+    return formatLength(feet).replace(/^0'(?=\d)/, "");
+  }
+  const sixteenths = Math.round(inches * 16);
+  if (Math.abs(inches * 16 - sixteenths) < 1e-3) {
+    const ft = Math.floor(sixteenths / 192);
+    const rest = sixteenths - ft * 192;
+    let num = rest % 16;
+    let den = 16;
+    while (num % 2 === 0) {
+      num /= 2;
+      den /= 2;
+    }
+    return `${ft > 0 ? `${ft}'` : ""}${Math.floor(rest / 16)}-${num}/${den}"`;
+  }
+  const thousandths = Math.round(inches * 1000);
+  const ft = Math.floor(thousandths / 12000);
+  return `${ft > 0 ? `${ft}'` : ""}${(thousandths - ft * 12000) / 1000}"`;
+}
 
 /** A move token for a wall of (dx, dy) feet, e.g. "R24'", "U30'6\"" or "R10'U5'". */
 export function moveToken(dx: number, dy: number): string {
   const tol = 1 / 96;
-  // Under a foot reads better as inches alone: 3" rather than 0'3".
-  const formatFeetInches = (v: number) => (lengthStyle() === "ftin" ? formatLength(v).replace(/^0'(?=\d)/, "") : formatLength(v));
-  const h = Math.abs(dx) > tol ? `${dx > 0 ? "R" : "L"}${formatFeetInches(Math.abs(dx))}` : "";
-  const v = Math.abs(dy) > tol ? `${dy > 0 ? "U" : "D"}${formatFeetInches(Math.abs(dy))}` : "";
+  const h = Math.abs(dx) > tol ? `${dx > 0 ? "R" : "L"}${tokenLength(Math.abs(dx))}` : "";
+  const v = Math.abs(dy) > tol ? `${dy > 0 ? "U" : "D"}${tokenLength(Math.abs(dy))}` : "";
   return h + v;
 }
 
 export interface Rewritten {
   vectors: string;
   origin: Point;
+  /** Where each wall of the old outline went: its new number, or null if it was removed. */
+  walls: (number | null)[];
+}
+
+/** Carry hidden-dimension wall numbers through a rewrite, so they stay on the same walls. */
+export function remapHiddenDims(hidden: readonly number[] | undefined, walls: readonly (number | null)[]): number[] {
+  const out = new Set<number>();
+  for (const k of hidden ?? []) {
+    const to = walls[k];
+    if (to !== null && to !== undefined) out.add(to);
+  }
+  return [...out].sort((a, b) => a - b);
 }
 
 /** Corners of an outline in drawing order (start first). */
@@ -45,7 +85,8 @@ export function openAtCorner(vectors: string, origin: Point, i: number): Rewritt
   if (n < 3 || !closure(path).closed || i < 0 || i >= n) return null;
   const tokens = path.segments.map((s, k) => sources[k] ?? moveToken(s.to.x - s.from.x, s.to.y - s.from.y));
   const order = [...tokens.slice(i + 1), ...tokens.slice(0, i)];
-  return { vectors: order.join(" "), origin: { ...path.segments[i]!.to } };
+  const walls = tokens.map((_, k) => (k === i ? null : k > i ? k - i - 1 : n - 1 - i + k));
+  return { vectors: order.join(" "), origin: { ...path.segments[i]!.to }, walls };
 }
 
 /**
@@ -66,7 +107,7 @@ export function deleteWall(vectors: string, origin: Point, corner: number | null
   }
   const tokens = path.segments.map((s, k) => sources[k] ?? moveToken(s.to.x - s.from.x, s.to.y - s.from.y));
   tokens.pop();
-  return { vectors: tokens.join(" "), origin: { ...path.start } };
+  return { vectors: tokens.join(" "), origin: { ...path.start }, walls: path.segments.map((_, k) => (k < n - 1 ? k : null)) };
 }
 
 /** Close an open outline with a straight wall back to the start. */
@@ -127,24 +168,33 @@ export function moveCorners(vectors: string, origin: Point, cornerIdx: number[],
   const newOrigin = moved.has(0) ? { x: origin.x + d.x, y: origin.y + d.y } : { ...origin };
 
   const tokens: string[] = [];
+  const walls: (number | null)[] = segs.map(() => null);
+  const keep = (k: number, token: string) => {
+    walls[k] = tokens.length;
+    tokens.push(token);
+  };
   segs.forEach((s, k) => {
     const src = sources[k] ?? null;
     if (src === null) {
       // A wall made by CL/A: keep closing (it follows the corners by itself).
-      tokens.push(k === n - 1 ? "CL" : moveToken(delta[k]!.x, delta[k]!.y));
+      const t = k === n - 1 ? "CL" : moveToken(delta[k]!.x, delta[k]!.y);
+      if (t !== "") keep(k, t);
       return;
     }
     const same = Math.abs(delta[k]!.x - (s.to.x - s.from.x)) < 1e-9 && Math.abs(delta[k]!.y - (s.to.y - s.from.y)) < 1e-9;
     if (!changed.has(k) || same) {
-      tokens.push(src);
+      keep(k, src);
       return;
     }
     const t = moveToken(delta[k]!.x, delta[k]!.y);
     if (t === "") return; // wall shrank to nothing
     const arc = s.kind === "arc" ? /\^.*$/.exec(src)?.[0] ?? "" : "";
-    tokens.push(t + arc);
+    keep(k, t + arc);
   });
-  return { vectors: tokens.join(" "), origin: newOrigin };
+  // A closing wall that shrank to nothing leaves "CL" with no wall behind it.
+  const made = parseVectors(tokens.join(" "), newOrigin).path.segments.length;
+  for (let k = 0; k < n; k++) if (walls[k] !== null && walls[k]! >= made) walls[k] = null;
+  return { vectors: tokens.join(" "), origin: newOrigin, walls };
 }
 
 /**

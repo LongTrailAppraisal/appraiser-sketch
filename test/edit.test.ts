@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyArrow, area, deleteWall, moveCorners, closeOutline, closure, corners, moveToken, openAtCorner, parseVectors } from "../src/geometry/index.js";
+import { adjustLastWall as adjustWall, remapHiddenDims, setLengthStyle, tokenLength, applyArrow, area, deleteWall, moveCorners, closeOutline, closure, corners, moveToken, openAtCorner, parseVectors } from "../src/geometry/index.js";
 
 describe("arrow keys", () => {
   it("turns a trailing length into a wall", () => {
@@ -32,7 +32,7 @@ describe("open and close at a corner", () => {
   it("opening at a corner removes the wall leaving it and ends there", () => {
     // Corner 1 is (24,0); the wall leaving it is U30. Outline now starts at (24,30) and ends at (24,0).
     const r = openAtCorner(v, { x: 0, y: 0 }, 1)!;
-    expect(r).toEqual({ vectors: "L24 D30 R24", origin: { x: 24, y: 30 } });
+    expect(r).toMatchObject({ vectors: "L24 D30 R24", origin: { x: 24, y: 30 } });
     const p = parseVectors(r.vectors, r.origin).path;
     expect(p.segments.at(-1)!.to).toEqual({ x: 24, y: 0 });
     expect(closure(p).closed).toBe(false);
@@ -76,7 +76,7 @@ describe("delete wall", () => {
   const o = { x: 0, y: 0 };
   it("steps back one wall at a time on an open outline", () => {
     let r = deleteWall("R24 U30 L24", o, null)!;
-    expect(r).toEqual({ vectors: "R24 U30", origin: o });
+    expect(r).toMatchObject({ vectors: "R24 U30", origin: o });
     r = deleteWall(r.vectors, r.origin, null)!;
     expect(r.vectors).toBe("R24");
     r = deleteWall(r.vectors, r.origin, null)!;
@@ -86,7 +86,7 @@ describe("delete wall", () => {
 
   it("opens a closed outline at the picked corner, then keeps stepping back", () => {
     const r = deleteWall("R24 U30 L24 D30", o, 1)!;
-    expect(r).toEqual({ vectors: "L24 D30 R24", origin: { x: 24, y: 30 } });
+    expect(r).toMatchObject({ vectors: "L24 D30 R24", origin: { x: 24, y: 30 } });
     expect(deleteWall(r.vectors, r.origin, null)!.vectors).toBe("L24 D30");
   });
 
@@ -120,7 +120,7 @@ describe("moving corners and walls with the mouse", () => {
 
   it("moving the start corner moves the origin and the closing wall", () => {
     const r = moveCorners("R24 U30 L24 D30", o, [0, 1], { x: 0, y: -1 })!;
-    expect(r).toEqual({ vectors: "R24 U31' L24 D31'", origin: { x: 0, y: -1 } });
+    expect(r).toMatchObject({ vectors: "R24 U31' L24 D31'", origin: { x: 0, y: -1 } });
     expect(closure(parseVectors(r.vectors, r.origin).path).closed).toBe(true);
   });
 
@@ -172,5 +172,94 @@ describe("adjust the last wall with arrows", async () => {
     } finally {
       setLengthStyle("ftin");
     }
+  });
+});
+
+describe("rewritten walls keep their exact length", () => {
+  const o = { x: 0, y: 0 };
+  const closed = (v: string, origin = o) => closure(parseVectors(v, origin).path).closed;
+
+  it("writes sixteenths and decimal inches instead of rounding to the inch", () => {
+    expect(tokenLength(24.5)).toBe("24'6\"");
+    expect(tokenLength(24)).toBe("24'");
+    expect(tokenLength(0.25)).toBe("3\"");
+    expect(tokenLength(24 + 6.5 / 12)).toBe("24'6-1/2\"");
+    expect(tokenLength(24 + 0.5 / 12)).toBe("24'0-1/2\"");
+    expect(tokenLength(0.375 / 12)).toBe("0-3/8\"");
+    expect(tokenLength(10 / Math.SQRT2)).toBe("7'0.853\"");
+    for (const v of [24 + 6.5 / 12, 24 + 0.5 / 12, 0.375 / 12, 10 / Math.SQRT2, 11.99999]) {
+      const back = parseVectors(`R${tokenLength(v)}`).path.segments[0]!.to.x;
+      expect(Math.abs(back - v)).toBeLessThan(1e-4);
+    }
+  });
+
+  it("keeps four places in decimal feet", () => {
+    setLengthStyle("decimal");
+    try {
+      expect(tokenLength(24)).toBe("24'");
+      expect(tokenLength(24.5833)).toBe("24.5833'");
+    } finally {
+      setLengthStyle("ftin");
+    }
+  });
+
+  it("an outline with half-inch walls still closes after a corner is moved", () => {
+    const v = `R24'6-1/2" U30 L24'6-1/2" D30`;
+    const r = moveCorners(v, o, [1], { x: 1, y: 0 })!;
+    expect(r.vectors).toBe(`R25'6-1/2" L1'U30' L24'6-1/2" D30`);
+    expect(closed(r.vectors, r.origin)).toBe(true);
+  });
+
+  it("an outline with a 45-degree wall keeps its corners when a neighbour moves", () => {
+    const v = "R20 U10 UL10 L12.9289 D17.0711";
+    const before = corners(v, o);
+    const r = moveCorners(v, o, [2], { x: 0, y: 1 })!;
+    const after = corners(r.vectors, r.origin);
+    expect(closed(r.vectors, r.origin)).toBe(true);
+    for (const k of [0, 1, 3, 4]) {
+      expect(Math.hypot(after[k]!.x - before[k]!.x, after[k]!.y - before[k]!.y)).toBeLessThan(1e-3);
+    }
+  });
+
+  it("a move too small for a wall never writes a zero-length one", () => {
+    expect(moveToken(0.02, 0)).toBe("R0.24\"");
+    expect(parseVectors(moveToken(0.02, 5)).errors).toEqual([]);
+  });
+
+  it("adjusting a half-inch wall by an inch keeps the half inch", () => {
+    expect(adjustWall(`R24'6-1/2" `, 11, "right", 1 / 12)!.text).toBe(`R24'7-1/2" `);
+  });
+});
+
+describe("hidden dimensions follow their walls", () => {
+  const o = { x: 0, y: 0 };
+
+  it("through opening an outline at a corner", () => {
+    // Walls 0..3 = R20 U10 L20 D10. Opening at corner 1 removes wall 1 and reorders the rest.
+    const r = openAtCorner("R20 U10 L20 D10", o, 1)!;
+    expect(r.vectors).toBe("L20 D10 R20");
+    expect(r.walls).toEqual([2, null, 0, 1]);
+    expect(remapHiddenDims([0, 3], r.walls)).toEqual([1, 2]);
+    expect(remapHiddenDims([1], r.walls)).toEqual([]);
+  });
+
+  it("through deleting the last wall", () => {
+    const r = deleteWall("R20 U10 L20", o, null)!;
+    expect(r.walls).toEqual([0, 1, null]);
+    expect(remapHiddenDims([1, 2], r.walls)).toEqual([1]);
+  });
+
+  it("through a corner move that removes a wall", () => {
+    // Corner 2 pulled down onto corner 1: wall 1 (U10) shrinks to nothing.
+    const r = moveCorners("R20 U10 L20 D10", o, [2], { x: 0, y: -10 })!;
+    expect(parseVectors(r.vectors, r.origin).path.segments).toHaveLength(3);
+    expect(r.walls).toEqual([0, null, 1, 2]);
+    expect(remapHiddenDims([1, 3], r.walls)).toEqual([2]);
+  });
+
+  it("stay put when no wall is removed", () => {
+    const r = moveCorners("R20 U10 L20 D10", o, [1, 2], { x: 2, y: 0 })!;
+    expect(r.walls).toEqual([0, 1, 2, 3]);
+    expect(remapHiddenDims(undefined, r.walls)).toEqual([]);
   });
 });
