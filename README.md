@@ -14,6 +14,59 @@ unfinished above, finished below, unfinished below, garages, amenities) (Print /
 report header, the sketch fitted to the page, area table with totals) plus PNG
 download. See `docs/SPEC.md`.
 
+## Install
+
+You need [Node.js](https://nodejs.org) 22.12 or newer (20.19 or newer in the
+20 series also works) and [Git](https://git-scm.com). Then, in a terminal:
+
+```
+git clone https://github.com/longtrailapprasial/sketch.git
+cd sketch
+npm install
+```
+
+To update later, run `git pull` and then `npm install` again in that folder.
+
+Once the site is published you can also use it with nothing to install, at
+https://longtrailapprasial.github.io/sketch.
+
+## Run
+
+```
+npm run dev
+```
+
+This starts the app and opens it in your browser at http://localhost:5179.
+Leave the terminal open while you work; Ctrl+C in it stops the app. Chrome or
+Edge is recommended: there, Save writes back to the same file. Other browsers
+work too, but each save is a download.
+
+The app runs entirely in your browser. Nothing is sent anywhere.
+
+## Configure
+
+There is no configuration file to edit; the app works as installed. The
+choices you can make are all on the screen:
+
+- **⚙ Settings** (top right): theme (Auto, Light, Dark), lengths (feet-inches
+  or decimal feet), what the mouse snaps to (1", 6", 1 foot, or corners only),
+  and export or import of My labels.
+- **Show** (toolbar): dimensions, labels, grid, corner angles, Auto fit.
+- **ANSI Z765** (toolbar): on by default. Turn it off for private work that is
+  not measured to the standard; the print and the copied totals then say so.
+
+Where your work is kept:
+
+- **Sketches** are ordinary files (`.sketch.json`) that you save wherever you
+  like, such as the job's workfile folder, with Save or Ctrl+S.
+- **Settings, My labels and the recovery draft** are kept by the browser, per
+  address. That is why the app always opens at the same address
+  (`localhost:5179`): at a different address or in a different browser they
+  start empty. To move My labels, export them from ⚙ Settings and import them
+  at the new address.
+- If port 5179 is already in use on your computer, change the two `port`
+  numbers in `vite.config.ts`.
+
 ## Vector entry
 
 ```
@@ -29,24 +82,7 @@ CL                           close to the start
 Stairs (straight, L, landing, U, winder) are drawn as symbols in phase 1 and
 count as area on the floor above, per ANSI Z765.
 
-## Development
-
-```
-npm install
-npm run dev       # opens http://localhost:5179 (fixed port: drafts and My labels are kept per address)
-npm test          # Vitest
-npm run typecheck
-npm run build     # static site in dist/
-```
-
-Publishing: `.github/workflows/pages.yml` runs the tests on every push to
-`main` and, once the repository is public, builds and publishes the site to
-GitHub Pages (Settings › Pages › Source: GitHub Actions). The site keeps its
-data in each visitor's browser; nothing is sent anywhere.
-
-Layout: `src/geometry/` is pure TypeScript with no DOM (units, vectors, path,
-ansi, model); `src/app/` is the screen (store with undo, SVG renderer, files,
-main); `src/export/` holds the paste-ready text; tests in `test/`.
+## Using the drawing
 
 On the canvas: drag an area to move it (snaps to other areas' corners, or to
 the grid set in ⚙ Settings; hold Alt for free movement), drag empty space to pan, wheel to zoom,
@@ -88,5 +124,24 @@ zooming or panning by hand turns it off, and F or Fit turns it back on. on an ar
 moves its start point there. Drag an area's label to move it,
 double-click to put it back. The toolbar's Show switches hide dimensions,
 labels or the grid; each area can also hide its own label or dimensions. Ctrl+Z / Ctrl+Y undo and redo, Ctrl+S save, Ctrl+O open.
+
+## Development
+
+```
+npm run dev       # the app, reloading as you edit the code
+npm test          # Vitest
+npm run typecheck
+npm run build     # static site in dist/
+npm run preview   # serve the built site from dist/ at http://localhost:5179
+```
+
+Publishing: `.github/workflows/pages.yml` runs the tests on every push to
+`main` and, once the repository is public, builds and publishes the site to
+GitHub Pages (Settings › Pages › Source: GitHub Actions). The site keeps its
+data in each visitor's browser; nothing is sent anywhere.
+
+Layout: `src/geometry/` is pure TypeScript with no DOM (units, vectors, path,
+ansi, model); `src/app/` is the screen (store with undo, SVG renderer, files,
+main); `src/export/` holds the paste-ready text; tests in `test/`.
 
 License: MIT (see LICENSE).
