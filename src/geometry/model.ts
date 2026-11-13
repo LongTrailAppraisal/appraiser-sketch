@@ -274,10 +274,11 @@ export function computeArea(area: Area, opts: { ansi?: boolean } = {}): AreaResu
   }
   if (shape.selfIntersects) problems.push("outline crosses itself; area is not reliable");
 
-  const zones: ZoneResult[] = area.zones.map((zone) => {
+  const zones: ZoneResult[] = area.zones.map((zone, zi) => {
     const s = computeShape(zone.vectors, zone.origin);
     const inside = flatten(s.path).every((p) => containsPoint(outline, p));
-    const label = zone.name ?? zone.id;
+    // Unnamed zones go by their number in the list, as the zones panel shows them.
+    const label = zone.name ?? `${zi + 1}`;
     for (const e of s.errors) problems.push(`zone ${label}: "${e.text}": ${e.message}`);
     if (!s.closure.closed && s.path.segments.length > 0) problems.push(`zone ${label}: outline does not close`);
     if (!inside) problems.push(`zone ${label}: extends outside the area`);

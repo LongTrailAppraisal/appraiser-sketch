@@ -180,3 +180,17 @@ describe("closing and errors", () => {
     expect(area(path)).toBeCloseTo(100, 9);
   });
 });
+
+describe("curly quotes", () => {
+  it("are read as feet and inch marks, as a tablet keyboard types them", () => {
+    const r = parseVectors("R24’6” U10′ L24‘6“ D10");
+    expect(r.errors).toEqual([]);
+    expect(r.path.segments[0]!.to).toEqual({ x: 24.5, y: 0 });
+    expect(closure(r.path).closed).toBe(true);
+  });
+
+  it("keep error positions where they were typed", () => {
+    const r = parseVectors("R24’6” X9");
+    expect(r.errors.map((e) => e.offset)).toEqual([7]);
+  });
+});

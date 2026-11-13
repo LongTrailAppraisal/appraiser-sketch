@@ -120,6 +120,15 @@ function parseToken(tok: string): TokenResult {
   return { error: `unknown move "${tok}"` };
 }
 
+/**
+ * Curly quotes and prime marks as plain ' and ". Tablet and phone keyboards
+ * (and text pasted from documents) turn 24'6" into 24’6”. One character for
+ * one, so positions in the text stay the same.
+ */
+export function straightQuotes(text: string): string {
+  return text.replace(/[‘’′]/g, "'").replace(/[“”″]/g, '"');
+}
+
 /** Parse vector text into a path starting at `start`. Never throws; bad tokens are skipped and reported. */
 export function parseVectors(text: string, start: Point = { x: 0, y: 0 }): ParseResult {
   const errors: VectorError[] = [];
@@ -130,7 +139,7 @@ export function parseVectors(text: string, start: Point = { x: 0, y: 0 }): Parse
   let closed = false;
 
   // Blank out "# comments" to end of line, keeping character offsets.
-  const clean = text.replace(/#[^\n]*/g, (c) => " ".repeat(c.length));
+  const clean = straightQuotes(text).replace(/#[^\n]*/g, (c) => " ".repeat(c.length));
 
   for (const match of clean.matchAll(/[^\s,]+/g)) {
     const tok = match[0];

@@ -226,3 +226,21 @@ describe("structure names follow the type", async () => {
     for (const n of ["Smith barn", "Guest house", "Barn loft"]) expect(isDefaultStructureName(n)).toBe(false);
   });
 });
+
+describe("zone warnings", () => {
+  it("call an unnamed zone by its number, never its internal id", () => {
+    const area = {
+      id: "a1", name: "Attic", kind: "living", grade: "above", finished: true, level: "2", connected: true, ceiling: "full",
+      origin: { x: 0, y: 0 }, vectors: "R20 U10 L20 D10",
+      zones: [
+        { id: "zmh2x1", band: "low", origin: { x: 0, y: 0 }, vectors: "R20 U4 L20 D4" },
+        { id: "zmh2x2", band: "low", origin: { x: 15, y: 6 }, vectors: "R10 U4 L10 D4" },
+        { id: "zmh2x3", name: "Dormer", band: "reduced", origin: { x: 0, y: 8 }, vectors: "R5 U5 L5 D5" },
+      ],
+    } as const;
+    const problems = computeArea(structuredClone(area) as unknown as Parameters<typeof computeArea>[0]).problems;
+    expect(problems).toContain("zone 2: extends outside the area");
+    expect(problems).toContain("zone Dormer: extends outside the area");
+    expect(problems.join(" ")).not.toContain("zmh2x");
+  });
+});

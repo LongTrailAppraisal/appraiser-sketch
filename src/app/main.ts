@@ -40,6 +40,7 @@ import {
   type LengthStyle,
   corners as areaCorners,
   parseVectors,
+  straightQuotes,
   type AreaResult,
   type Area,
   type Structure,
@@ -1175,6 +1176,13 @@ const vectors = $<HTMLTextAreaElement>("vectors");
 const vstatus = $<HTMLDivElement>("vector-status");
 
 vectors.addEventListener("input", () => {
+  // Tablet keyboards type curly quotes; keep plain ' and " in the box (same length, so the caret stays put).
+  const plain = straightQuotes(vectors.value);
+  if (plain !== vectors.value) {
+    const { selectionStart, selectionEnd } = vectors;
+    vectors.value = plain;
+    vectors.setSelectionRange(selectionStart, selectionEnd);
+  }
   const zoneId = store.state.selection?.zone;
   if (zoneId) {
     editArea((a) => {
@@ -1245,6 +1253,7 @@ function closeKeyIntoWalls(atEnd: boolean): boolean {
   if (!atEnd && vectors.selectionStart !== vectors.selectionEnd) return false;
   const before = vectors.value.slice(0, caret);
   if (before === "" || /[\s,]$/.test(before)) return false; // a token start: A may begin a polar move (A30:12)
+  if (/#[^\n]*$/.test(before)) return false; // inside a # comment: an ordinary letter
   vectors.setRangeText(" A", caret, caret, "end");
   vectors.dispatchEvent(new Event("input"));
   return true;
@@ -2166,9 +2175,12 @@ async function doOpen() {
 }
 
 async function doSave(saveAs: boolean) {
+  // Note what is being written before waiting on the dialog and the disk:
+  // a change made meanwhile is not in the file and must still count as unsaved.
+  const revision = store.revision;
   try {
     if (await files.save(store.state.sketch, saveAs)) {
-      savedRevision = store.revision;
+      savedRevision = revision;
       drawToolbar();
       say(`Saved ${files.name}`);
     }
