@@ -2169,7 +2169,7 @@ function drawToolbar() {
   if (ansi.checked !== store.state.sketch.meta.ansi) ansi.checked = store.state.sketch.meta.ansi;
   const dirty = store.revision !== savedRevision;
   $("file-status").textContent = `${files.name ?? "Unsaved sketch"}${dirty ? " •" : ""}`;
-  document.title = `${dirty ? "• " : ""}${files.name ?? "Sketch"}`;
+  document.title = `${dirty ? "• " : ""}${files.name ? `${files.name} – Appraiser Sketch` : "Appraiser Sketch"}`;
 }
 
 /** Ids of the room labels inside an area's outline (for moving them with it). */
