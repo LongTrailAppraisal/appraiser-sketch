@@ -14,6 +14,7 @@ import { cornerAngles, formatAngle,
   stairHandles,
   ZONE_BANDS,
   type AreaResult,
+  type Path,
   type Stair,
   type Point,
   type SketchResult,
@@ -169,6 +170,35 @@ export interface RenderOptions {
   textScale?: number;
   /** A dimension or area label picked for hiding with Delete. */
   picked?: { kind: "dim" | "label"; area: string; wall?: number } | null;
+  /** Drawing an interior wall: where the next click would land, and the line to it from the last point. */
+  preview?: { from: Point | null; to: Point; kind: string } | null;
+}
+
+/** An open run of walls as SVG path data (arcs flattened). */
+function runPath(path: Path, v: View): string {
+  const pts = flatten(path, Math.PI / 48).map((p) => toScreen(v, p));
+  return pts.length >= 2 ? `M${pts.map((p) => `${n(p.x)},${n(p.y)}`).join("L")}` : "";
+}
+
+/** Lengths beside each wall of a selected interior wall (screen only). */
+function runLengths(path: Path, v: View): string {
+  const out: string[] = [];
+  for (const seg of path.segments) {
+    const a = toScreen(v, seg.from);
+    const b = toScreen(v, seg.to);
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len < 24) continue;
+    // Beside the wall, on its left as drawn.
+    const nx = -(b.y - a.y) / len;
+    const ny = (b.x - a.x) / len;
+    const p = { x: (a.x + b.x) / 2 - nx * 9, y: (a.y + b.y) / 2 - ny * 9 };
+    let deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+    if (deg > 90) deg -= 180;
+    if (deg < -90) deg += 180;
+    const wl = Math.hypot(seg.to.x - seg.from.x, seg.to.y - seg.from.y);
+    out.push(`<text class="dim iwall-dim" font-size="11" x="${n(p.x)}" y="${n(p.y)}" transform="rotate(${deg.toFixed(1)} ${n(p.x)} ${n(p.y)})">${esc(formatLength(wl))}</text>`);
+  }
+  return out.join("");
 }
 
 /** Where an area's label sits: outline centre plus the saved offset. */
@@ -190,7 +220,7 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
     for (const r of s.areas) {
       const pts = flatten(r.shape.path, Math.PI / 48);
       const selected = selection?.structure === s.structure.id && selection.area === r.area.id;
-      const areaSelected = selected && !selection?.stair && !selection?.zone;
+      const areaSelected = selected && !selection?.stair && !selection?.zone && !selection?.iwall;
       const cls = ["area", `kind-${r.area.kind}`, `bucket-${r.ansi.bucket}`, areaSelected ? "selected" : "", r.problems.length ? "has-problems" : ""]
         .filter(Boolean)
         .join(" ");
@@ -216,6 +246,27 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
           const c = toScreen(v, centroid(wp));
           const short = ZONE_BANDS.find((b) => b.value === z.zone.band)?.short ?? z.zone.band;
           labels.push(`<text class="zone-label" x="${n(c.x)}" y="${n(c.y)}">${esc(z.zone.name ? `${z.zone.name} · ${short}` : short)}</text>`);
+        }
+      }
+
+      // Interior walls (floor plan only; they never change the area).
+      for (const w of r.walls) {
+        const d = runPath(w.path, v);
+        if (!d) continue;
+        const wsel = selected && selection?.iwall === w.wall.id;
+        parts.push(`<path class="iwall${wsel ? " selected" : ""}${w.inside ? "" : " outside"}" d="${d}"/>`);
+        if (!interactive) continue;
+        parts.push(`<path class="iwall-hit" ${data} data-iwall="${esc(w.wall.id)}" d="${d}"><title>Interior wall: drag to move, click to edit</title></path>`);
+        if (wsel) {
+          labels.push(runLengths(w.path, v));
+          const cs = [w.path.start, ...w.path.segments.map((sg) => sg.to)];
+          const closed = cs.length > 2 && Math.hypot(cs[0]!.x - cs.at(-1)!.x, cs[0]!.y - cs.at(-1)!.y) < 1e-6;
+          (closed ? cs.slice(0, -1) : cs).forEach((c, i) => {
+            const p = toScreen(v, c);
+            handles.push(
+              `<circle class="corner" ${data} data-iwall="${esc(w.wall.id)}" data-iwall-corner="${i}" cx="${n(p.x)}" cy="${n(p.y)}" r="5"><title>Drag to move this end or bend</title></circle>`,
+            );
+          });
         }
       }
 
@@ -302,6 +353,18 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
         }
       }
     }
+  }
+
+  if (opts.preview && interactive) {
+    const pv = opts.preview;
+    const to = toScreen(v, pv.to);
+    if (pv.from) {
+      const from = toScreen(v, pv.from);
+      parts.push(`<line class="iwall-preview" x1="${n(from.x)}" y1="${n(from.y)}" x2="${n(to.x)}" y2="${n(to.y)}"/>`);
+      const len = Math.hypot(pv.to.x - pv.from.x, pv.to.y - pv.from.y);
+      if (len > 1e-6) labels.push(`<text class="preview-len" x="${n(to.x + 12)}" y="${n(to.y - 10)}">${esc(formatLength(len))}</text>`);
+    }
+    handles.push(`<circle class="snap-mark snap-${pv.kind}" cx="${n(to.x)}" cy="${n(to.y)}" r="5"/>`);
   }
 
   for (const t of result.sketch.texts ?? []) {

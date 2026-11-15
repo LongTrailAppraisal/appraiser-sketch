@@ -14,8 +14,8 @@ export function levelRank(level: string): number {
 }
 
 /**
- * A copy of an area placed with its start point at `origin`. Its stairs and
- * ceiling zones come along (new ids, same place relative to the outline);
+ * A copy of an area placed with its start point at `origin`. Its stairs,
+ * ceiling zones and interior walls come along (new ids, same place relative to the outline);
  * `over` then sets the new area's name, type, level and so on.
  */
 export function copyArea(src: Area, origin: Point, newId: (prefix: string) => string, over: Partial<Area> = {}): Area {
@@ -28,6 +28,7 @@ export function copyArea(src: Area, origin: Point, newId: (prefix: string) => st
   copy.origin = { ...origin };
   copy.zones = copy.zones.map((z) => ({ ...z, id: newId("z"), origin: shift(z.origin) }));
   copy.stairs = (copy.stairs ?? []).map((s) => ({ ...s, id: newId("st"), origin: shift(s.origin) }));
+  if (copy.walls) copy.walls = copy.walls.map((w) => ({ ...w, id: newId("w"), origin: shift(w.origin) }));
   return { ...copy, ...over, id: copy.id };
 }
 

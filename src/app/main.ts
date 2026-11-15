@@ -52,6 +52,9 @@ import {
   stairHome,
   type Side,
   type ZoneBand,
+  moveToken,
+  snapWallPoint,
+  type SnapTargets,
 } from "../geometry/index.js";
 import { levelName, totalGroups, totalsText } from "../export/text.js";
 import { printPageHtml, sketchPng } from "../export/print.js";
@@ -116,8 +119,9 @@ try {
 function drawCanvas() {
   const { width, height } = size();
   const sel = store.state.selection;
-  const corner = activeCorner && sel?.area === activeCorner.area && !sel.stair && !sel.zone ? activeCorner.index : null;
-  canvas.innerHTML = renderSketch(result, { width, height, view, selection: sel, grid: showGrid, activeCorner: corner, selectedText, angles: showAngles, picked });
+  const corner = activeCorner && sel?.area === activeCorner.area && !sel.stair && !sel.zone && !sel.iwall ? activeCorner.index : null;
+  const preview = drawing ? hover : null;
+  canvas.innerHTML = renderSketch(result, { width, height, view, selection: sel, grid: showGrid, activeCorner: corner, selectedText, angles: showAngles, picked, preview });
 }
 
 function sketchBounds() {
@@ -209,11 +213,22 @@ canvas.addEventListener(
 );
 
 type Drag =
-  | { kind: "pan"; startX: number; startY: number; ox: number; oy: number; at: Point; moved: boolean }
+  | {
+      kind: "pan";
+      startX: number;
+      startY: number;
+      ox: number;
+      oy: number;
+      at: Point;
+      moved: boolean;
+      /** Drawing interior walls: a click (not a drag) places a point here (screen px); Alt held places it freely. */
+      place?: { px: Point; free: boolean };
+    }
   | { kind: "move"; sel: Selection; start: Point; origin: Point; key: string; carry?: string[] }
   | { kind: "handle"; sel: Selection; handle: StairHandleKey; key: string }
   | { kind: "label"; sel: Selection; start: Point; offset: Point; key: string; moved?: boolean }
   | { kind: "text"; id: string; start: Point; at: Point; key: string }
+  | { kind: "iwall-corner"; sel: Selection; corner: number; base: Point; neighbour: Point | null; vectors: string; origin: Point; start: Point; key: string }
   | {
       kind: "corner";
       sel: Selection;
@@ -257,6 +272,8 @@ function snap(v: number): number {
   return step > 0 ? Math.round(Math.round(v / step) * step * 1e6) / 1e6 : v;
 }
 const VERTEX_SNAP_PX = 10;
+/** Interior walls reach a little further to find a wall or corner: running a wall to a wall is the usual case. */
+const WALL_SNAP_PX = 16;
 
 /** Corners of every area outline, optionally leaving one area out. */
 function areaVertices(skipArea?: string): Point[] {
@@ -297,8 +314,131 @@ function dragOrigin(sel: Selection): Point | null {
   if (!f) return null;
   if (sel.stair) return (f.area.stairs ?? []).find((st) => st.id === sel.stair)?.origin ?? null;
   if (sel.zone) return f.area.zones.find((z) => z.id === sel.zone)?.origin ?? null;
+  if (sel.iwall) return (f.area.walls ?? []).find((w) => w.id === sel.iwall)?.origin ?? null;
   return f.area.origin;
 }
+
+// ---------- interior walls: drawing with the mouse ----------
+
+/** Drawing interior walls on an area; `wall` is the one being drawn, once its start is placed. */
+let drawing: { sel: Selection; wall: string | null } | null = null;
+/** Where the next click would land while drawing (shown as a marker and a dashed line). */
+let hover: { from: Point | null; to: Point; kind: string } | null = null;
+
+function areaResultFor(areaId: string): AreaResult | undefined {
+  return result.structures.flatMap((s) => s.areas).find((a) => a.area.id === areaId);
+}
+
+/** Corners and wall lines an interior wall snaps to: every outline and interior wall on the drawing. */
+function wallSnapTargets(skipWall?: string): SnapTargets {
+  const points: Point[] = [];
+  const lines: [Point, Point][] = [];
+  const addRun = (pts: Point[], closed: boolean) => {
+    points.push(...pts);
+    for (let i = 0; i + 1 < pts.length; i++) lines.push([pts[i]!, pts[i + 1]!]);
+    if (closed && pts.length > 2) lines.push([pts[pts.length - 1]!, pts[0]!]);
+  };
+  for (const s of result.structures) {
+    for (const a of s.areas) {
+      if (a.shape.path.segments.length) addRun(flatten(a.shape.path, Math.PI / 8), true);
+      for (const w of a.walls) if (w.wall.id !== skipWall && w.path.segments.length) addRun(flatten(w.path, Math.PI / 8), false);
+    }
+  }
+  return { points, lines };
+}
+
+/** The end of the wall being drawn (where the next segment starts), or null before its start is placed. */
+function wallPen(): Point | null {
+  if (!drawing?.wall) return null;
+  const w = areaResultFor(drawing.sel.area)?.walls.find((x) => x.wall.id === drawing!.wall);
+  if (!w) return null;
+  return w.path.segments.at(-1)?.to ?? w.path.start;
+}
+
+function snapForWall(px: Point, free: boolean): { prev: Point | null; at: Point; kind: string } {
+  const prev = wallPen();
+  const r = snapWallPoint(toWorld(view, px), prev, wallSnapTargets(), { tol: WALL_SNAP_PX / view.scale, step: snapStep(), free });
+  return { prev, at: r.at, kind: r.kind };
+}
+
+const iwallButton = $<HTMLButtonElement>("btn-add-iwall");
+
+function startDrawingWalls() {
+  const sel = store.state.selection;
+  if (!sel) return;
+  drawing = { sel: { structure: sel.structure, area: sel.area }, wall: null };
+  hover = null;
+  activeCorner = null;
+  canvas.classList.add("drawing-walls");
+  iwallButton.textContent = "Done drawing walls";
+  iwallButton.classList.add("active");
+  store.select({ structure: sel.structure, area: sel.area });
+  canvas.focus();
+  say("Click where the wall starts");
+}
+
+/** Stop drawing interior walls (Enter, Esc, double-click, or the button). Returns false if not drawing. */
+function finishDrawingWalls(): boolean {
+  if (!drawing) return false;
+  const d = drawing;
+  drawing = null;
+  hover = null;
+  canvas.classList.remove("drawing-walls");
+  iwallButton.textContent = "+ Interior wall";
+  iwallButton.classList.remove("active");
+  say("Stopped drawing walls");
+  // A wall with only a start point is nothing: drop it.
+  const w = d.wall ? (findArea(store.state.sketch, d.sel)?.area.walls ?? []).find((x) => x.id === d.wall) : undefined;
+  if (w && parseVectors(w.vectors, w.origin).path.segments.length === 0) {
+    store.update((draft) => {
+      const f = findArea(draft, d.sel);
+      if (!f) return;
+      f.area.walls = (f.area.walls ?? []).filter((x) => x.id !== w.id);
+      if (f.area.walls.length === 0) delete f.area.walls;
+      return { ...d.sel };
+    });
+  } else {
+    drawCanvas();
+    drawVectorBar();
+  }
+  return true;
+}
+
+/** A click while drawing: the wall's start point, then one corner per click. Clicking the last point again finishes. */
+function placeWallPoint(px: Point, free: boolean) {
+  const d = drawing;
+  if (!d) return;
+  const { prev, at } = snapForWall(px, free);
+  if (!prev) {
+    const id = newId("w");
+    store.update((draft) => {
+      const f = findArea(draft, d.sel);
+      if (!f) return;
+      (f.area.walls ??= []).push({ id, origin: at, vectors: "" });
+      return { ...d.sel, iwall: id };
+    });
+    d.wall = id;
+    say("Click each corner of the wall, or type walls (U12 R8). Double-click, Enter or Esc when done.");
+    return;
+  }
+  const tok = moveToken(at.x - prev.x, at.y - prev.y);
+  if (tok === "") {
+    // Clicked where the wall already ends: finish this wall and start another.
+    d.wall = null;
+    store.select({ ...d.sel });
+    hover = null;
+    say("Wall done. Click to start another, or Enter / Esc to stop drawing.");
+    return;
+  }
+  store.update((draft) => {
+    const w = (findArea(draft, d.sel)?.area.walls ?? []).find((x) => x.id === d.wall);
+    if (w) w.vectors = (w.vectors.trim() ? `${w.vectors.trimEnd()} ` : "") + tok;
+  });
+}
+
+iwallButton.addEventListener("click", () => {
+  if (!finishDrawingWalls()) startDrawingWalls();
+});
 
 canvas.addEventListener("pointerdown", (e) => {
   canvas.focus();
@@ -311,6 +451,42 @@ canvas.addEventListener("pointerdown", (e) => {
     canvas.setPointerCapture(e.pointerId);
   } catch {
     /* synthetic or already-released pointer */
+  }
+  if (drawing && e.button === 0) {
+    // A click places a point; a drag still pans.
+    drag = { kind: "pan", startX: e.clientX, startY: e.clientY, ox: view.ox, oy: view.oy, at: toWorld(view, p), moved: false, place: { px: p, free: e.altKey } };
+    return;
+  }
+  const iwallCornerEl = el.closest("[data-iwall-corner]");
+  if (iwallCornerEl && e.button === 0) {
+    const sel: Selection = {
+      structure: iwallCornerEl.getAttribute("data-structure")!,
+      area: iwallCornerEl.getAttribute("data-area")!,
+      iwall: iwallCornerEl.getAttribute("data-iwall")!,
+    };
+    const w = (findArea(store.state.sketch, sel)?.area.walls ?? []).find((x) => x.id === sel.iwall);
+    if (!w) return;
+    const corner = Number(iwallCornerEl.getAttribute("data-iwall-corner"));
+    const pts = areaCorners(w.vectors, w.origin);
+    const base = pts[corner];
+    if (!base) return;
+    dragSeq += 1;
+    drag = {
+      kind: "iwall-corner", sel, corner, base, neighbour: pts[corner - 1] ?? pts[corner + 1] ?? null,
+      vectors: w.vectors, origin: { ...w.origin }, start: toWorld(view, p), key: `iwall-corner:${sel.iwall}:${dragSeq}`,
+    };
+    return;
+  }
+  const iwallEl = el.closest("[data-iwall]");
+  if (iwallEl && e.button === 0) {
+    const sel: Selection = { structure: iwallEl.getAttribute("data-structure")!, area: iwallEl.getAttribute("data-area")!, iwall: iwallEl.getAttribute("data-iwall")! };
+    store.select(sel);
+    const origin = dragOrigin(sel);
+    if (origin) {
+      dragSeq += 1;
+      drag = { kind: "move", sel, start: toWorld(view, p), origin: { ...origin }, key: `move:${sel.iwall}:${dragSeq}` };
+    }
+    return;
   }
   const cornerEl = el.closest("[data-corner]");
   const wallEl = cornerEl ? null : el.closest("[data-wall]");
@@ -403,6 +579,13 @@ canvas.addEventListener("pointerdown", (e) => {
 });
 
 canvas.addEventListener("pointermove", (e) => {
+  if (!drag && drawing) {
+    const r = canvas.getBoundingClientRect();
+    const { prev, at, kind } = snapForWall({ x: e.clientX - r.left, y: e.clientY - r.top }, e.altKey);
+    hover = { from: prev, to: at, kind };
+    drawCanvas();
+    return;
+  }
   if (!drag) return;
   if (drag.kind === "pan") {
     if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 3) {
@@ -481,6 +664,24 @@ canvas.addEventListener("pointermove", (e) => {
     );
     return;
   }
+  if (drag.kind === "iwall-corner") {
+    const d = drag;
+    const raw = { x: d.base.x + w.x - d.start.x, y: d.base.y + w.y - d.start.y };
+    // Snap as when drawing: square or 45° to the next corner along, stopping on walls and corners.
+    const snapped = snapWallPoint(raw, d.neighbour, wallSnapTargets(d.sel.iwall), { tol: WALL_SNAP_PX / view.scale, step: snapStep(), free: e.altKey });
+    const r = moveCorners(d.vectors, d.origin, [d.corner], { x: snapped.at.x - d.base.x, y: snapped.at.y - d.base.y });
+    if (!r) return;
+    store.update(
+      (draft) => {
+        const wl = (findArea(draft, d.sel)?.area.walls ?? []).find((x) => x.id === d.sel.iwall);
+        if (!wl) return;
+        wl.vectors = r.vectors;
+        wl.origin = r.origin;
+      },
+      { coalesce: d.key },
+    );
+    return;
+  }
   if (drag.kind === "text") {
     const d = drag;
     const inch = snap;
@@ -518,6 +719,13 @@ canvas.addEventListener("pointermove", (e) => {
     if (!st) return;
     const mine = stairDrawing({ ...st, origin: d.origin }).parts.flat();
     next = snapMove(mine, areaVertices(), d.origin, proposed, e.altKey);
+  } else if (d.sel.iwall) {
+    const ar = areaResultFor(d.sel.area);
+    const wr = ar?.walls.find((x) => x.wall.id === d.sel.iwall);
+    if (!ar || !wr) return;
+    const cur = wr.wall.origin;
+    const mine = flatten(wr.path, Math.PI / 8).map((q) => ({ x: q.x - cur.x + d.origin.x, y: q.y - cur.y + d.origin.y }));
+    next = snapMove(mine, wallSnapTargets(d.sel.iwall).points, d.origin, proposed, e.altKey);
   } else if (d.sel.zone) {
     const ar = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === d.sel.area);
     const zr = ar?.zones.find((z) => z.zone.id === d.sel.zone);
@@ -550,17 +758,21 @@ canvas.addEventListener("pointermove", (e) => {
         if (d.sel.stair) {
           const st = (f.area.stairs ?? []).find((x) => x.id === d.sel.stair);
           if (st) st.origin = next;
+        } else if (d.sel.iwall) {
+          const wl = (f.area.walls ?? []).find((x) => x.id === d.sel.iwall);
+          if (wl) wl.origin = next;
         } else if (d.sel.zone) {
           const z = f.area.zones.find((x) => x.id === d.sel.zone);
           if (z) z.origin = next;
         } else {
-          // The area moves as a group: its stairs, zones and the labels inside it go too.
+          // The area moves as a group: its stairs, zones, interior walls and the labels inside it go too.
           const dx = next.x - f.area.origin.x;
           const dy = next.y - f.area.origin.y;
           const shift = (q: Point): Point => ({ x: q.x + dx, y: q.y + dy });
           f.area.origin = next;
           for (const st of f.area.stairs ?? []) st.origin = shift(st.origin);
           for (const z of f.area.zones) z.origin = shift(z.origin);
+          for (const wl of f.area.walls ?? []) wl.origin = shift(wl.origin);
           const carry = new Set(d.carry ?? []);
           for (const t of draft.texts ?? []) if (carry.has(t.id)) t.at = shift(t.at);
         }
@@ -571,6 +783,13 @@ canvas.addEventListener("pointermove", (e) => {
 });
 
 function endDrag() {
+  if (drag?.kind === "pan" && drag.place) {
+    const { moved, place } = drag;
+    drag = null;
+    canvas.classList.remove("panning");
+    if (!moved) placeWallPoint(place.px, place.free);
+    return;
+  }
   // A click on an area label (no drag) picks it, so Delete can hide it.
   if (drag?.kind === "label" && !drag.moved) {
     const area = drag.sel.area;
@@ -632,6 +851,7 @@ function endDrag() {
 }
 canvas.addEventListener("pointerup", endDrag);
 canvas.addEventListener("dblclick", (e) => {
+  if (drawing) return; // the two clicks already ended the wall
   const labelEl = (e.target as Element).closest("[data-label]");
   if (!labelEl) return;
   const sel: Selection = { structure: labelEl.getAttribute("data-structure")!, area: labelEl.getAttribute("data-area")! };
@@ -1184,7 +1404,13 @@ vectors.addEventListener("input", () => {
     vectors.setSelectionRange(selectionStart, selectionEnd);
   }
   const zoneId = store.state.selection?.zone;
-  if (zoneId) {
+  const iwallId = store.state.selection?.iwall;
+  if (iwallId) {
+    editArea((a) => {
+      const wl = (a.walls ?? []).find((x) => x.id === iwallId);
+      if (wl) wl.vectors = vectors.value;
+    }, `iwall-vectors-${iwallId}`);
+  } else if (zoneId) {
     editArea((a) => {
       const z = a.zones.find((x) => x.id === zoneId);
       if (z) z.vectors = vectors.value;
@@ -1299,6 +1525,52 @@ function drawVectorBar() {
   }
   const r = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === found.area.id);
   if (!r) return;
+  const wr = sel?.iwall ? r.walls.find((x) => x.wall.id === sel.iwall) : undefined;
+  // Templates replace the area's outline: offer them only while the box shows that outline.
+  const outlineShown = !sel?.iwall && !sel?.zone && !drawing;
+  tpl.box.classList.toggle("hidden", !outlineShown);
+  if (!outlineShown) tpl.box.open = false;
+  if (drawing && !drawing.wall && !wr) {
+    // Drawing, start not placed yet: the box would otherwise edit the area's outline.
+    vectorLabel.textContent = "Interior wall";
+    vectors.disabled = true;
+    vectors.value = "";
+    vectorsFor = "";
+    vstatus.innerHTML =
+      `Click where the wall starts: it snaps to corners, along walls and to the grid (Alt: no snapping). ` +
+      `<span class="hint">Enter or Esc stops drawing; drag to pan.</span>`;
+    return;
+  }
+  if (wr) {
+    vectorLabel.textContent = "Interior wall";
+    const showing = `iwall:${wr.wall.id}`;
+    if (showing !== vectorsFor) {
+      vectorsFor = showing;
+      vectors.value = wr.wall.vectors;
+      adjusting = null;
+    } else {
+      sync(vectors, wr.wall.vectors);
+    }
+    const n = wr.path.segments.length;
+    const total = wr.path.segments.reduce((t, sg) => t + Math.hypot(sg.to.x - sg.from.x, sg.to.y - sg.from.y), 0);
+    const bits = [
+      n === 0 ? "Click each corner, or type walls from the start point (e.g. <b>U12 R8</b>)" : `${n} wall${n === 1 ? "" : "s"}, ${formatLength(total)} long`,
+      "floor plan only; never changes the area",
+      wr.inside ? "" : `<span class="bad">extends outside ${esc(found.area.name)}</span>`,
+    ].filter(Boolean);
+    const actions = [
+      drawing ? `<span class="hint">Double-click to end this wall; Enter or Esc stops drawing.</span>` : "",
+      n > 0 ? `<button class="inline" data-action="delete">Delete last wall</button>` : "",
+      `<button class="inline" data-action="delete-iwall">Delete interior wall</button>`,
+      drawing ? "" : `<span class="hint">Drag it to move it, or drag its ends and bends.</span>`,
+    ].filter(Boolean);
+    const errs = wr.errors.map((e) => `"${e.text}": ${e.message}`);
+    vstatus.innerHTML =
+      bits.join(" · ") +
+      `<div class="actions">${actions.join(" ")}</div>` +
+      (errs.length ? `<ul>${errs.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "");
+    return;
+  }
   const zr = sel?.zone ? r.zones.find((z) => z.zone.id === sel.zone) : undefined;
   vectorLabel.textContent = zr ? "Zone" : "Walls";
   // Always refresh when the box switches to another area or zone, even while it has focus,
@@ -1368,7 +1640,7 @@ function drawVectorBar() {
 /** The picked corner, if it belongs to the selected area. */
 function cornerToNudge(): { area: string; index: number } | null {
   const sel = store.state.selection;
-  return activeCorner && sel?.area === activeCorner.area && !sel.stair && !sel.zone ? activeCorner : null;
+  return activeCorner && sel?.area === activeCorner.area && !sel.stair && !sel.zone && !sel.iwall ? activeCorner : null;
 }
 
 function nudgeCorner(dir: "up" | "down" | "left" | "right", step: number) {
@@ -1386,9 +1658,29 @@ function nudgeCorner(dir: "up" | "down" | "left" | "right", step: number) {
   }, `nudge-${c.area}-${c.index}`);
 }
 
+/** Wall text after a wall is taken off: a trailing space, so the next wall typed starts a new word ("U12 R8", not "U12R8", one diagonal wall). */
+function readyToType(text: string): string {
+  return text === "" || /\s$/.test(text) ? text : `${text} `;
+}
+
 /** Delete the wall leaving the picked corner (closed outline) or the last wall, stepping the pen back. */
 function deleteWallAction(): boolean {
   const f = findArea(store.state.sketch, store.state.selection);
+  const iwallId = store.state.selection?.iwall;
+  if (f && iwallId) {
+    // Interior wall: take off its last segment.
+    const wl = (f.area.walls ?? []).find((x) => x.id === iwallId);
+    const r = wl ? deleteWall(wl.vectors, wl.origin, null) : null;
+    if (!r) return false;
+    editArea((a) => {
+      const t = (a.walls ?? []).find((x) => x.id === iwallId);
+      if (t) t.vectors = readyToType(r.vectors);
+    });
+    external = true;
+    drawVectorBar();
+    external = false;
+    return true;
+  }
   if (!f || store.state.selection?.zone || store.state.selection?.stair) return false;
   const corner = activeCorner?.area === f.area.id ? activeCorner.index : null;
   const r = deleteWall(f.area.vectors, f.area.origin, corner);
@@ -1396,7 +1688,7 @@ function deleteWallAction(): boolean {
   const wasClosed = corner !== null;
   activeCorner = null;
   editArea((a) => {
-    a.vectors = r.vectors;
+    a.vectors = readyToType(r.vectors);
     a.origin = r.origin;
     setHiddenDims(a, remapHiddenDims(a.hiddenDims, r.walls));
   });
@@ -1407,11 +1699,30 @@ function deleteWallAction(): boolean {
   return true;
 }
 
+/** Remove the selected interior wall. */
+function deleteInteriorWall(): boolean {
+  const sel = store.state.selection;
+  if (!sel?.iwall) return false;
+  if (drawing?.wall === sel.iwall) drawing.wall = null;
+  store.update((draft) => {
+    const f = findArea(draft, sel);
+    if (!f) return;
+    f.area.walls = (f.area.walls ?? []).filter((x) => x.id !== sel.iwall);
+    if (f.area.walls.length === 0) delete f.area.walls;
+    return { structure: sel.structure, area: sel.area };
+  });
+  say("Interior wall deleted (Ctrl+Z to undo)");
+  return true;
+}
+
 vstatus.addEventListener("click", (e) => {
   const action = (e.target as Element).closest("[data-action]")?.getAttribute("data-action");
   const f = findArea(store.state.sketch, store.state.selection);
   if (!action || !f) return;
-  if (action === "delete") {
+  if (action === "delete-iwall") {
+    deleteInteriorWall();
+    canvas.focus();
+  } else if (action === "delete") {
     deleteWallAction();
     vectors.focus();
     vectors.setSelectionRange(vectors.value.length, vectors.value.length);
@@ -2221,7 +2532,11 @@ function redo() {
 document.addEventListener("keydown", (e) => {
   const mod = e.ctrlKey || e.metaKey;
   const k = e.key.toLowerCase();
-  if (mod && k === "z" && !e.shiftKey) {
+  if (e.key === "Escape" && drawing) {
+    e.preventDefault();
+    finishDrawingWalls();
+    canvas.focus();
+  } else if (mod && k === "z" && !e.shiftKey) {
     e.preventDefault();
     undo();
   } else if (mod && (k === "y" || (k === "z" && e.shiftKey))) {
@@ -2247,6 +2562,12 @@ document.addEventListener("keydown", (e) => {
     nudgeCorner(ARROWS[e.key]!, e.shiftKey ? 1 : smallStep());
   } else if (!mod && !e.altKey && document.activeElement === canvas && e.key === "Enter" && endAdjust()) {
     e.preventDefault();
+  } else if (!mod && document.activeElement === canvas && e.key === "Enter" && drawing) {
+    e.preventDefault();
+    finishDrawingWalls();
+  } else if (!mod && document.activeElement === canvas && e.key === "Delete" && !picked && !selectedText && store.state.selection?.iwall) {
+    e.preventDefault();
+    deleteInteriorWall();
   } else if (!mod && !e.altKey && document.activeElement === canvas && e.key in ARROWS) {
     if (arrowIntoWalls(e.key, true, e.shiftKey)) {
       e.preventDefault();
@@ -2334,6 +2655,10 @@ themeSelect.addEventListener("change", () => {
 let draftTimer = 0;
 function redraw() {
   result = computeSketch(store.state.sketch);
+  if (drawing && store.state.selection?.area !== drawing.sel.area) {
+    finishDrawingWalls();
+    return; // finishing redraws
+  }
   // Keep the whole sketch in view as walls are added (not mid-drag, which would make things jump).
   if (autoFit && !drag) fit();
   else drawCanvas();

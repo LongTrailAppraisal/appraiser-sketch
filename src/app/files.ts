@@ -15,6 +15,7 @@ import {
   type Area,
   type AreaKind,
   type CeilingBand,
+  type InteriorWall,
   type Override,
   type Point,
   type Sketch,
@@ -105,6 +106,14 @@ function readZone(z: Raw, where: string): Zone {
   };
 }
 
+function readWall(w: Raw, where: string): InteriorWall {
+  return {
+    id: str(w, "id", where) ?? newId("w"),
+    origin: point(w, "origin", where) ?? damaged(`${where}: origin`),
+    vectors: str(w, "vectors", where) ?? "",
+  };
+}
+
 function readStair(st: Raw, where: string): Stair {
   const positive = (key: string) => {
     const v = num(st, key, where);
@@ -132,6 +141,7 @@ function readArea(a: Raw, where: string): Area {
     const o = a.override as Raw;
     override = { bucket: oneOf(o, "bucket", BUCKETS, where) ?? damaged(`${where}: override`), note: str(o, "note", where) ?? "" };
   }
+  const walls = list(a, "walls", where).map((w, i) => readWall(w, `${where}, interior wall ${i + 1}`));
   let hiddenDims: number[] | undefined;
   if (a.hiddenDims !== undefined) {
     const h = a.hiddenDims;
@@ -152,6 +162,7 @@ function readArea(a: Raw, where: string): Area {
       vectors: str(a, "vectors", where),
       zones: list(a, "zones", where).map((z, i) => readZone(z, `${where}, zone ${i + 1}`)),
       stairs: list(a, "stairs", where).map((st, i) => readStair(st, `${where}, stair ${i + 1}`)),
+      walls: walls.length ? walls : undefined,
       override,
       label: point(a, "label", where),
       hideLabel: bool(a, "hideLabel", where) || undefined,

@@ -199,6 +199,17 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
 .labels text.start-hint { text-anchor: start; font-size: 12px; fill: var(--accent); }
 .labels text.zone-label { font-size: 10px; fill: var(--muted); font-style: italic; }
 
+.iwall { fill: none; stroke: var(--ink); stroke-width: 1.2; stroke-linecap: square; stroke-linejoin: miter; pointer-events: none; }
+.iwall.selected { stroke: var(--accent); stroke-width: 2.2; }
+.iwall.outside { stroke: var(--warn); }
+.iwall-hit { fill: none; stroke: transparent; stroke-width: 12; cursor: move; }
+.iwall-hit:hover { stroke: var(--accent-soft); }
+.iwall-preview { stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 5 4; pointer-events: none; }
+.preview-len { font-size: 12px; font-weight: 600; fill: var(--accent); font-variant-numeric: tabular-nums; pointer-events: none; }
+.snap-mark { fill: none; stroke: var(--accent); stroke-width: 1.6; pointer-events: none; }
+.snap-mark.snap-corner { fill: var(--accent); }
+.snap-mark.snap-wall { stroke-width: 2.4; }
+.canvas.drawing-walls, .canvas.drawing-walls * { cursor: crosshair !important; }
 .stair { fill: var(--canvas); stroke: var(--ink); stroke-width: 1.2; cursor: move; }
 .stair.selected { stroke: var(--accent); stroke-width: 2.2; }
 .tread { stroke: var(--muted); stroke-width: 0.8; pointer-events: none; }

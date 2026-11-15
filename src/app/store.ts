@@ -14,6 +14,8 @@ export interface Selection {
   stair?: string;
   /** A ceiling zone or opening on that area, when one is selected. */
   zone?: string;
+  /** An interior wall on that area, when one is selected. */
+  iwall?: string;
 }
 
 export interface State {
@@ -165,6 +167,7 @@ export class Store {
     if (!s || !a) return null;
     if (sel.stair && !(a.stairs ?? []).some((st) => st.id === sel.stair)) return { structure: s.id, area: a.id };
     if (sel.zone && !a.zones.some((z) => z.id === sel.zone)) return { structure: s.id, area: a.id };
+    if (sel.iwall && !(a.walls ?? []).some((w) => w.id === sel.iwall)) return { structure: s.id, area: a.id };
     return sel;
   }
 }

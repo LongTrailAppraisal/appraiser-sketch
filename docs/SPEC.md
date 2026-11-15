@@ -43,7 +43,7 @@ integration, cost approach.
 | Phase | Scope |
 |---|---|
 | **1 — Simple sketch (MVP)** | Vector entry, angles, arcs, feet-inches; multiple areas and structures; ANSI GLA with overrides; stairs (straight, L / right-angle, middle landing, U, winder) with direction arrow; area table; undo/redo; templates; print page; PNG/PDF; paste-ready area block; save/open. |
-| **2 — Floor plan** | Interior walls, doors, windows, room labels, bed/bath counts; simple/detailed toggle per sketch. |
+| **2 — Floor plan** | Interior walls (done: single-line walls per area, drawn with the mouse or typed; never change the area), doors, windows, room labels, bed/bath counts; simple/detailed toggle per sketch. |
 | **3 — Integration** | Reggora autofill (after a sample Reggora report shows the fields); UAD 3.6 / MISMO XML area data if needed; `appr` reads area totals for the report package. |
 
 ## 4. Concepts and data model
@@ -54,6 +54,7 @@ Sketch
  └─ structures[]          main dwelling, ADU, detached garage, barn …
      └─ areas[]           1st floor, 2nd floor, basement, garage, porch …
          ├─ origin        start point (feet, sketch coordinates)
+         ├─ walls[]       interior walls: { origin, vectors } open runs, floor plan only
          ├─ vectors       the typed vector text — the source of truth
          ├─ kind          living | garage | porch | deck | patio | carport | breezeway | other
          ├─ grade         above | below

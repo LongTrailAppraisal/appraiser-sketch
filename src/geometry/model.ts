@@ -40,6 +40,17 @@ export interface Zone {
   vectors: string;
 }
 
+/**
+ * An interior wall: an open run of walls typed from a start point, like an
+ * outline that need not close ("U12 R8"; CL closes it into a closet). Drawn
+ * on the floor plan only; it never changes the area.
+ */
+export interface InteriorWall {
+  id: string;
+  origin: Point;
+  vectors: string;
+}
+
 export interface Area {
   id: string;
   name: string;
@@ -55,6 +66,8 @@ export interface Area {
   zones: Zone[];
   /** Stair symbols drawn on this level. They never change the area (ANSI: they count on the floor above). */
   stairs?: Stair[];
+  /** Interior walls (floor plan only; never change the area). */
+  walls?: InteriorWall[];
   override?: Override;
   /** Area label offset from the outline's centre, feet. */
   label?: Point;
@@ -191,10 +204,19 @@ export interface ZoneResult extends ShapeResult {
   inside: boolean;
 }
 
+export interface WallResult {
+  wall: InteriorWall;
+  path: Path;
+  errors: VectorError[];
+  /** False if some of the wall lies outside its area's outline. */
+  inside: boolean;
+}
+
 export interface AreaResult {
   area: Area;
   shape: ShapeResult;
   zones: ZoneResult[];
+  walls: WallResult[];
   ansi: AnsiResult;
   /** Every problem with this area, for display: vector errors, closure, ANSI warnings. */
   problems: string[];
@@ -302,6 +324,15 @@ export function computeArea(area: Area, opts: { ansi?: boolean } = {}): AreaResu
     if (!pts.every((p) => containsPoint(outline, p))) problems.push(`stair ${i + 1}: drawn outside the area`);
   });
 
+  const walls: WallResult[] = (area.walls ?? []).map((wall, i) => {
+    const { path, errors } = parseVectors(wall.vectors, wall.origin);
+    const pts = path.segments.length ? flatten(path) : [];
+    const inside = outline.length < 3 || pts.every((p) => containsPoint(outline, p));
+    for (const e of errors) problems.push(`interior wall ${i + 1}: "${e.text}": ${e.message}`);
+    if (!inside) problems.push(`interior wall ${i + 1}: extends outside the area`);
+    return { wall, path, errors, inside };
+  });
+
   const ansi = classify(
     {
       kind: area.kind,
@@ -317,7 +348,7 @@ export function computeArea(area: Area, opts: { ansi?: boolean } = {}): AreaResu
   );
   problems.push(...ansi.warnings);
 
-  return { area, shape, zones, ansi, problems };
+  return { area, shape, zones, walls, ansi, problems };
 }
 
 /** Finished/unfinished living area on one level (UAD 3.6 LEVEL). Unrounded. */

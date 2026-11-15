@@ -4,7 +4,7 @@
 
 Draw the house from your field notes, get gross living area and the other area totals measured to ANSI Z765, and print a sketch exhibit for the report. It runs entirely in your browser: there is no account, no subscription, and nothing is sent anywhere.
 
-![Appraiser Sketch in light and dark themes, drawing a first floor with a 45° bay, clipped corners and a curved wall, plus a garage, screened porch and deck, with the GLA area table](docs/screenshot-split.png)
+![Appraiser Sketch in light and dark themes, drawing a first floor with a 45° bay, clipped corners, a curved wall and interior walls, plus a garage, screened porch and deck, with the GLA area table](docs/screenshot-split.png)
 
 <sub>Light and dark themes. Full size: [light](docs/screenshot.png) · [dark](docs/screenshot-dark.png)</sub>
 
@@ -18,6 +18,7 @@ Draw the house from your field notes, get gross living area and the other area t
 - **ANSI Z765 area math.** Finished and unfinished, above and below grade, garages and amenities, each grouped the way a report needs. Stairs, ceiling zones and openings (knee walls, open-to-below) count the way the standard says. You can turn ANSI off for private work, and the print and totals then say so.
 - **Multiple areas and structures.** A dwelling, ADU, detached garage, barn, shed and outbuildings, each with its own floors.
 - **Templates and presets.** Rectangle, L, bump-out, 45° bay, bow window, garage and deck shapes. Presets for the next floor, basement, finished attic, garage, carport, porch, deck, patio and breezeway.
+- **Interior walls for a floor plan.** Click them in (they snap to corners and walls and stay square or at 45°) or type them like an outline. They never change the area.
 - **Stairs.** Straight, landing, L, winder and U, drawn as symbols and counted on the floor above.
 - **Mouse editing.** Drag walls, corners and areas with snapping to corners and to a grid. Full undo and redo.
 - **Print / PDF and PNG.** A report header, the sketch fitted to the page, and an area table with totals. Totals can also be copied to paste into your report software.
@@ -65,9 +66,15 @@ You can also type straight onto the drawing: a length then an arrow key makes a 
 | Move a corner | Drag it (snaps to other corners and lines up with neighbours), or click it and use the arrow keys (1"; Shift: 1'). |
 | Delete a wall | Click a corner and choose **Delete wall** to redraw from there. |
 | Start an empty area somewhere | Click the drawing where its start point should go. |
-| Copy an outline | **Copy as** on the Area panel (exactly, or as basement, next floor, garage…). **Copy walls from** starts an empty area from another area's outline. |
+| Copy an outline | **Copy as** on the Area panel (exactly, or as basement, next floor, garage…), with its stairs, ceiling zones and interior walls. **Copy walls from** starts an empty area from another area's outline. |
 
 Corner angles show on the selected area, with square corners in grey (Show › Angles turns them off). The walls text is rewritten to match every mouse edit.
+
+**Interior walls**
+
+Select the area and press **+ Interior wall**. Click where the wall starts, then each corner: points snap to corners, along walls and to the grid, and each wall stays square or at 45° and stops right on the wall it meets (hold Alt for none of that). Instead of clicking corners you can type the wall after the start point (`U12 R8`, or a length and an arrow key). Double-click ends a wall and lets you start the next; Enter or Esc stops drawing. Dragging still pans.
+
+Click a wall to select it: drag it to move it, drag its round handles to move an end or a bend, Backspace removes its last segment and Delete removes it. Interior walls move and copy with their area, print with the sketch, and never change any area figure.
 
 **Stairs**
 
@@ -83,7 +90,7 @@ Click a stair to select it, then drag it or its round handles (flight lengths, w
 
 Each structure is named after its type (Dwelling, ADU, Detached garage, Barn, Shed, Outbuilding), numbered if repeated, until you type your own name.
 
-**Keyboard shortcuts:** Ctrl+Z undo · Ctrl+Y redo · Ctrl+S save · Ctrl+O open · Ctrl+P print · F fit · C auto fit · T rotate stair · Delete remove selected label or dimension.
+**Keyboard shortcuts:** Ctrl+Z undo · Ctrl+Y redo · Ctrl+S save · Ctrl+O open · Ctrl+P print · F fit · C auto fit · T rotate stair · Delete remove selected label, dimension or interior wall · Enter / Esc stop drawing interior walls.
 
 ## Settings
 
@@ -119,7 +126,7 @@ The local copy always uses port 5179, because the browser keeps your settings, l
 
 ## Status
 
-Version 0.1. Working today: everything listed under [Features](#features). Still to come: per-wall dimension control and remembering the workfile folder. The full design and roadmap are in [`docs/SPEC.md`](docs/SPEC.md).
+Version 0.1. Working today: everything listed under [Features](#features). Still to come: doors and windows, per-wall dimension control and remembering the workfile folder. The full design and roadmap are in [`docs/SPEC.md`](docs/SPEC.md).
 
 Bug reports and suggestions from appraisers are welcome. Please [open an issue](https://github.com/longtrailappraisal/appraiser-sketch/issues), and **never attach a real client's sketch or address**. Make up an example that shows the problem.
 
