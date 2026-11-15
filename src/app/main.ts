@@ -228,7 +228,7 @@ type Drag =
   | { kind: "handle"; sel: Selection; handle: StairHandleKey; key: string }
   | { kind: "label"; sel: Selection; start: Point; offset: Point; key: string; moved?: boolean }
   | { kind: "text"; id: string; start: Point; at: Point; key: string }
-  | { kind: "iwall-corner"; sel: Selection; corner: number; base: Point; neighbour: Point | null; vectors: string; origin: Point; start: Point; key: string }
+  | { kind: "iwall-corner"; sel: Selection; corner: number; base: Point; neighbours: Point[]; vectors: string; origin: Point; start: Point; key: string }
   | {
       kind: "corner";
       sel: Selection;
@@ -472,7 +472,7 @@ canvas.addEventListener("pointerdown", (e) => {
     if (!base) return;
     dragSeq += 1;
     drag = {
-      kind: "iwall-corner", sel, corner, base, neighbour: pts[corner - 1] ?? pts[corner + 1] ?? null,
+      kind: "iwall-corner", sel, corner, base, neighbours: [pts[corner - 1], pts[corner + 1]].filter((q): q is Point => !!q),
       vectors: w.vectors, origin: { ...w.origin }, start: toWorld(view, p), key: `iwall-corner:${sel.iwall}:${dragSeq}`,
     };
     return;
@@ -667,8 +667,14 @@ canvas.addEventListener("pointermove", (e) => {
   if (drag.kind === "iwall-corner") {
     const d = drag;
     const raw = { x: d.base.x + w.x - d.start.x, y: d.base.y + w.y - d.start.y };
-    // Snap as when drawing: square or 45° to the next corner along, stopping on walls and corners.
-    const snapped = snapWallPoint(raw, d.neighbour, wallSnapTargets(d.sel.iwall), { tol: WALL_SNAP_PX / view.scale, step: snapStep(), free: e.altKey });
+    // Moves freely in any direction: onto a corner or a wall when near one, otherwise to the grid,
+    // lining up square with the corners either side when close.
+    const snapped = snapWallPoint(raw, null, wallSnapTargets(d.sel.iwall), {
+      tol: WALL_SNAP_PX / view.scale,
+      step: snapStep(),
+      free: e.altKey,
+      align: d.neighbours,
+    });
     const r = moveCorners(d.vectors, d.origin, [d.corner], { x: snapped.at.x - d.base.x, y: snapped.at.y - d.base.y });
     if (!r) return;
     store.update(

@@ -133,3 +133,25 @@ describe("interior walls on an area", () => {
     expect(print).not.toContain("data-iwall="); // nothing clickable on paper
   });
 });
+
+describe("moving an interior wall's end or bend", () => {
+  const move = (cursor: { x: number; y: number }, align: { x: number; y: number }[]) =>
+    snapWallPoint(cursor, null, room, { ...opts, align });
+
+  it("goes anywhere, not just along one line", () => {
+    // Bend at (12,14) dragged up and to the right at once.
+    const r = move({ x: 15.02, y: 17.49 }, [{ x: 12, y: 0 }, { x: 30, y: 14 }]);
+    expect(r.kind).toBe("grid");
+    close(r.at, { x: 15, y: 17.5 });
+  });
+
+  it("lines up square with a neighbouring corner when close", () => {
+    const r = move({ x: 12.2, y: 9 }, [{ x: 12, y: 0 }]);
+    close(r.at, { x: 12, y: 9 });
+  });
+
+  it("still lands on a wall or a corner when near one", () => {
+    close(move({ x: 29.85, y: 9 }, []).at, { x: 30, y: 9 });
+    close(move({ x: 29.9, y: 23.9 }, []).at, { x: 30, y: 24 });
+  });
+});

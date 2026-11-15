@@ -24,6 +24,12 @@ export interface SnapOptions {
   step: number;
   /** Alt held: no snapping and no angle lock. */
   free: boolean;
+  /**
+   * With no previous point (a free move): points to line up with. On the grid,
+   * an x or y within reach of one of these is taken from it, so a dragged
+   * corner stays square with its neighbours.
+   */
+  align?: Point[];
 }
 
 export interface SnapResult {
@@ -112,7 +118,12 @@ export function snapWallPoint(cursor: Point, prev: Point | null, t: SnapTargets,
       }
       return { at: best, kind: "wall" };
     }
-    return { at: { x: roundStep(cursor.x, o.step), y: roundStep(cursor.y, o.step) }, kind: o.step > 0 ? "grid" : "free" };
+    const at = { x: roundStep(cursor.x, o.step), y: roundStep(cursor.y, o.step) };
+    for (const q of o.align ?? []) {
+      if (Math.abs(q.x - cursor.x) < o.tol) at.x = q.x;
+      if (Math.abs(q.y - cursor.y) < o.tol) at.y = q.y;
+    }
+    return { at, kind: o.step > 0 ? "grid" : "free" };
   }
 
   const u = lockedDirection(prev, cursor);

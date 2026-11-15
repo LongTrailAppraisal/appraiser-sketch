@@ -74,7 +74,7 @@ Corner angles show on the selected area, with square corners in grey (Show › A
 
 Select the area and press **+ Interior wall**. Click where the wall starts, then each corner: points snap to corners, along walls and to the grid, and each wall stays square or at 45° and stops right on the wall it meets (hold Alt for none of that). Instead of clicking corners you can type the wall after the start point (`U12 R8`, or a length and an arrow key). Double-click ends a wall and lets you start the next; Enter or Esc stops drawing. Dragging still pans.
 
-Click a wall to select it: drag it to move it, drag its round handles to move an end or a bend, Backspace removes its last segment and Delete removes it. Interior walls move and copy with their area, print with the sketch, and never change any area figure.
+Click a wall to select it: drag it to move it, drag its round handles to move an end or a bend in any direction (they snap to corners and walls and line up square with the next corner), Backspace removes its last segment and Delete removes it. Interior walls move and copy with their area, print with the sketch, and never change any area figure.
 
 **Stairs**
 
