@@ -1,6 +1,6 @@
-# Sketch — specification
+# Appraiser Sketch — specification
 
-Working name: **sketch** (final name TBD — must be generic and not trademarked).
+Name: **Appraiser Sketch** (repository `appraiser-sketch`; chosen 2026-11-15).
 Status: draft 1, 2026-11-12. Phase 1 geometry module built and tested; first
 drawing screen working (see README). Stairs, templates and a theme
 selector done. Still to do in phase 1: per-wall dimension control,

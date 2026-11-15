@@ -39,7 +39,7 @@ type PickerWindow = Window & {
   showSaveFilePicker?: (opts: unknown) => Promise<FileHandle>;
 };
 
-const PICKER_TYPES = [{ description: "Sketch", accept: { "application/json": [".sketch.json", ".json"] } }];
+const PICKER_TYPES = [{ description: "Appraiser Sketch", accept: { "application/json": [".sketch.json", ".json"] } }];
 
 export class SketchFileError extends Error {}
 
