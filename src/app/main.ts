@@ -58,6 +58,7 @@ import {
 } from "../geometry/index.js";
 import { levelName, totalGroups, totalsText } from "../export/text.js";
 import { printPageHtml, sketchPng } from "../export/print.js";
+import { reportExportJson } from "../export/report.js";
 import { FileManager, SketchFileError, download, draftWasRejected, loadDraft, saveDraft } from "./files.js";
 import { exportLabels, mergeLabels, parseLabelsFile } from "./labels.js";
 import { centroid, renderSketch, toWorld, type View } from "./render.js";
@@ -2112,6 +2113,19 @@ $("btn-png").addEventListener("click", async () => {
     say("PNG downloaded");
   } catch {
     say("Could not make the PNG");
+  }
+});
+
+$("btn-report").addEventListener("click", async () => {
+  if (!result.structures.some((s) => s.areas.length > 0)) {
+    say("Nothing to export yet");
+    return;
+  }
+  try {
+    const saved = await files.saveCompanion(reportExportJson(result, fittedScale()), exportName("areas.json"), "Sketch areas for a report", ".areas.json");
+    if (saved) say(`Saved ${saved} for the report`);
+  } catch {
+    say("Could not save the report file");
   }
 });
 

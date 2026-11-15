@@ -297,6 +297,33 @@ export class FileManager {
     return true;
   }
 
+  /**
+   * Save a companion file (e.g. the report export). The dialog opens in the
+   * folder of the current sketch file where the browser allows it. Returns the
+   * saved name, or null if cancelled.
+   */
+  async saveCompanion(data: string, name: string, description: string, ext: string): Promise<string | null> {
+    const w = window as PickerWindow;
+    if (w.showSaveFilePicker) {
+      try {
+        const h = await w.showSaveFilePicker({
+          types: [{ description, accept: { "application/json": [ext] } }],
+          suggestedName: name,
+          ...(this.handle ? { startIn: this.handle } : {}),
+        });
+        const out = await h.createWritable();
+        await out.write(data);
+        await out.close();
+        return h.name;
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return null;
+        throw e;
+      }
+    }
+    download(data, name);
+    return name;
+  }
+
   reset(): void {
     this.handle = null;
     this.name = null;

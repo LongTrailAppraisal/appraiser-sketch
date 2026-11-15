@@ -22,6 +22,7 @@ Draw the house from your field notes, get gross living area and the other area t
 - **Stairs.** Straight, landing, L, winder and U, drawn as symbols and counted on the floor above.
 - **Mouse editing.** Drag walls, corners and areas with snapping to corners and to a grid. Full undo and redo.
 - **Print / PDF and PNG.** A report header, the sketch fitted to the page, and an area table with totals. Totals can also be copied to paste into your report software.
+- **For report.** Saves the totals and the drawing as one `.areas.json` file next to the sketch, for report programs to read. Format: [`docs/REPORT_EXPORT.md`](docs/REPORT_EXPORT.md).
 - **Your files, your computer.** Sketches are ordinary `.sketch.json` files you save in the job's workfile folder. A draft is kept automatically in case the browser closes.
 - Light, dark and automatic themes.
 
