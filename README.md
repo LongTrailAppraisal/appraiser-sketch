@@ -4,10 +4,9 @@
 
 Draw the house from your field notes, get gross living area and the other area totals measured to ANSI Z765, and print a sketch exhibit for the report. It runs entirely in your browser: there is no account, no subscription, and nothing is sent anywhere.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
-  <img src="docs/screenshot.png" alt="Appraiser Sketch drawing a first floor with a 45° bay, clipped corners and a curved wall, plus a garage, screened porch and deck, with the GLA area table">
-</picture>
+![Appraiser Sketch in light and dark themes, drawing a first floor with a 45° bay, clipped corners and a curved wall, plus a garage, screened porch and deck, with the GLA area table](docs/screenshot-split.png)
+
+<sub>Light and dark themes. Full size: [light](docs/screenshot.png) · [dark](docs/screenshot-dark.png)</sub>
 
 **Use it now:** https://longtrailappraisal.github.io/appraiser-sketch (nothing to install)
 
