@@ -307,12 +307,17 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
         if (opts.angles !== false && closed) {
           for (const c of cornerAngles(r.shape.path)) {
             const p = toScreen(v, c.at);
-            // Just inside the corner, along the line halving it.
-            const off = c.angle > 200 ? 13 : 17;
+            // Just inside the corner, along the line halving it, and far enough out that the
+            // whole (centred) text clears the corner's round handle: "225°" beside a corner
+            // used to lose its ° under the handle.
+            const text = formatAngle(c.angle);
+            const halfW = (text.length * 6) / 2;
+            const halfH = 5;
+            const off = 8 + halfW * Math.abs(c.bisector.x) + halfH * Math.abs(c.bisector.y);
             const x = p.x + c.bisector.x * off;
             const y = p.y - c.bisector.y * off;
             const square = Math.abs(c.angle - 90) < 0.05 || Math.abs(c.angle - 270) < 0.05;
-            labels.push(`<text class="angle-label${square ? " square" : ""}" x="${n(x)}" y="${n(y)}">${formatAngle(c.angle)}</text>`);
+            labels.push(`<text class="angle-label${square ? " square" : ""}" x="${n(x)}" y="${n(y)}">${text}</text>`);
           }
         }
         // Corners: drag to move; click to pick one for Delete wall.
