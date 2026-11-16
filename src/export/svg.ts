@@ -20,6 +20,9 @@ text { font-family: Arial, Helvetica, sans-serif; }
 .zone-reduced { fill: #f6f6f6; }
 .zone-label { font-size: ${px(10)}; font-style: italic; fill: #444; }
 .zone-opening { fill: #fbeaea; }
+.zone-part { stroke: none; }
+.zone-part.zone-full { fill: none; }
+.zone-sloped { fill: none; }
 .iwall { fill: none; stroke: #111; stroke-width: 1; stroke-linecap: square; }
 .stair { fill: #fff; stroke: #111; stroke-width: 1; }
 .tread { stroke: #666; stroke-width: 0.7; }

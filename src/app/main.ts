@@ -28,6 +28,10 @@ import {
   LABEL_GROUPS,
   COMMON_LABELS,
   stripZone,
+  slopeStrip,
+  setSlopeRun,
+  zoneLabel,
+  zoneShort,
   applyArrow,
   closeOutline,
   deleteWall,
@@ -1266,6 +1270,14 @@ const zones = {
   bandNew: $<HTMLSelectElement>("z-band-new"),
   depth: $<HTMLInputElement>("z-depth"),
   inset: $<HTMLInputElement>("z-inset"),
+  bandRow: $<HTMLLabelElement>("z-band-row"),
+  slopeEdit: $<HTMLDivElement>("z-slope-edit"),
+  eWall: $<HTMLInputElement>("z-e-wall"),
+  eTop: $<HTMLInputElement>("z-e-top"),
+  eRun: $<HTMLInputElement>("z-e-run"),
+  slopeWall: $<HTMLInputElement>("z-slope-wall"),
+  slopeTop: $<HTMLInputElement>("z-slope-top"),
+  slopeRun: $<HTMLInputElement>("z-slope-run"),
 };
 const bandOptions = ZONE_BANDS.map((b) => `<option value="${b.value}">${esc(b.label)}</option>`).join("");
 zones.band.innerHTML = bandOptions;
@@ -1301,7 +1313,7 @@ function drawZones() {
   zones.list.innerHTML = list.length
     ? list
         .map((z, i) => {
-          const short = ZONE_BANDS.find((b) => b.value === z.band)?.short ?? z.band;
+          const short = zoneShort(z);
           return `<button data-zone="${esc(z.id)}" class="${sel?.zone === z.id ? "selected" : ""}">${i + 1}. ${esc(z.name ? `${z.name} (${short})` : short)}</button>`;
         })
         .join("")
@@ -1310,8 +1322,49 @@ function drawZones() {
   zones.form.classList.toggle("hidden", !z);
   if (!z) return;
   sync(zones.name, z.name ?? "");
-  sync(zones.band, z.band);
+  const sloped = z.band === "sloped";
+  zones.bandRow.classList.toggle("hidden", sloped);
+  zones.slopeEdit.classList.toggle("hidden", !sloped);
+  if (!sloped) sync(zones.band, z.band);
+  else if (z.slope) {
+    sync(zones.eWall, formatLength(z.slope.fromHeight));
+    sync(zones.eTop, formatLength(z.slope.toHeight));
+    sync(zones.eRun, formatLength(Math.hypot(z.slope.to.x - z.slope.from.x, z.slope.to.y - z.slope.from.y)));
+  }
 }
+
+/** A length typed in a slope field, or null (and the field marked) if it isn't one. */
+function slopeLength(input: HTMLInputElement, positive = false): number | null {
+  const v = parseLength(input.value);
+  const ok = v !== null && (positive ? v > 0 : v >= 0);
+  input.classList.toggle("invalid", !ok);
+  return ok ? v : null;
+}
+
+zones.eWall.addEventListener("input", () => {
+  const v = slopeLength(zones.eWall);
+  if (v !== null) editZone((z) => z.slope && (z.slope.fromHeight = v), "slope-wall");
+});
+zones.eTop.addEventListener("input", () => {
+  const v = slopeLength(zones.eTop);
+  if (v !== null) editZone((z) => z.slope && (z.slope.toHeight = v), "slope-top");
+});
+zones.eRun.addEventListener("input", () => {
+  const v = slopeLength(zones.eRun, true);
+  if (v === null) return;
+  // Change how far the slope runs before the ceiling levels off; a plain strip grows or shrinks with it.
+  const sel = store.state.selection;
+  const zr = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === sel?.area)?.zones.find((z) => z.zone.id === sel?.zone);
+  if (!zr) return;
+  const outline = flatten(zr.path);
+  editZone((z) => {
+    if (!z.slope) return;
+    const next = setSlopeRun({ origin: z.origin, vectors: z.vectors, slope: z.slope }, outline, v);
+    z.origin = next.origin;
+    z.vectors = next.vectors;
+    z.slope = next.slope;
+  }, "slope-run");
+});
 
 function editZone(fn: (z: Area["zones"][number]) => void, coalesce?: string) {
   const zoneId = store.state.selection?.zone;
@@ -1366,6 +1419,24 @@ $("btn-add-strip").addEventListener("click", () => {
   zones.depth.classList.remove("invalid");
   const strip = stripZone(bounds(ar.shape.path), zones.side.value as Side, depth, inset);
   addZone({ band: zones.bandNew.value as ZoneBand, ...strip });
+});
+
+$("btn-add-slope").addEventListener("click", () => {
+  const sel = store.state.selection;
+  const ar = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === sel?.area);
+  if (!ar || ar.shape.path.segments.length === 0) {
+    say("Draw the area's walls first");
+    return;
+  }
+  const wall = slopeLength(zones.slopeWall);
+  const top = slopeLength(zones.slopeTop);
+  const run = slopeLength(zones.slopeRun, true);
+  if (wall === null || top === null || run === null) {
+    say("Enter heights and a distance like 2', 7'6\" and 6'");
+    return;
+  }
+  const strip = slopeStrip(bounds(ar.shape.path), zones.side.value as Side, run, wall, top);
+  addZone({ band: "sloped", ...strip });
 });
 
 $("btn-add-zone").addEventListener("click", () => {
@@ -1591,7 +1662,7 @@ function drawVectorBar() {
     sync(vectors, zr ? zr.zone.vectors : found.area.vectors);
   }
   if (zr) {
-    const band = ZONE_BANDS.find((b) => b.value === zr.zone.band)?.label ?? zr.zone.band;
+    const band = zoneLabel(zr.zone);
     const bits = [
       zr.path.segments.length === 0
         ? "Type the zone outline from its start point"
@@ -2234,6 +2305,12 @@ const AREA_PRESETS: (AreaPreset | "sep")[] = [
     label: "Finished basement area",
     hint: "below grade, finished",
     make: () => ({ name: "Finished basement", level: "basement", grade: "below", finished: true }),
+  },
+  {
+    id: "lower-level",
+    label: "Lower level (walkout / split-level)",
+    hint: "partly below grade, finished",
+    make: () => ({ name: "Lower level", level: "lower", grade: "partial", finished: true }),
   },
   {
     id: "attic",

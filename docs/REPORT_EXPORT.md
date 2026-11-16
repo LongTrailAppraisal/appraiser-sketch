@@ -23,8 +23,8 @@ The totals are the same ones the area table and **Copy totals** show.
       "buckets": { "gla": 1650, "unfinishedBelow": 1050, "garage": 576 },
       "totals": [
         { "label": "Standard finished above grade (GLA)", "area": 1650, "group": "Finished above grade", "bucket": "gla" },
-        { "label": "Level 1", "area": 1050, "group": "Finished above grade", "level": "1" },
-        { "label": "Level 2", "area": 600, "group": "Finished above grade", "level": "2" }
+        { "label": "Level 1", "area": 1050, "group": "Finished above grade", "level": "1", "grade": "above" },
+        { "label": "Level 2", "area": 600, "group": "Finished above grade", "level": "2", "grade": "above" }
       ]
     }
   ],
@@ -35,6 +35,8 @@ The totals are the same ones the area table and **Copy totals** show.
 
 - `totals` is in report order. A row with `bucket` is a total; rows with `level`
   that follow it break down the same group by floor.
+- Level rows carry `grade`: `above`, `partial` (partly below grade: walkout or
+  split-level lower level; UAD 3.6 `PartiallyBelowGrade`) or `below`.
 - `buckets` holds the non-zero totals keyed by bucket name (see
   `src/geometry/ansi.ts`), for programs that want specific figures.
 - Structures with no areas are left out.

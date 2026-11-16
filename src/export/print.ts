@@ -91,7 +91,7 @@ export function printPageHtml(result: SketchResult, screenScale?: number): strin
             g.areas
               .map(
                 (a) =>
-                  `<tr><td>${esc(a.area.name)}</td><td>${esc(areaKindLabel(a))}${a.area.kind === "living" ? ` · ${esc(levelName(a.area.level))}` : ""}</td>` +
+                  `<tr><td>${esc(a.area.name)}</td><td>${esc(areaKindLabel(a))}${a.area.kind === "living" ? ` · ${esc(levelName(a.area.level))}${a.area.grade === "partial" ? " (partly below grade)" : ""}` : ""}</td>` +
                   `<td>${esc(areaFormula(a))}</td><td class="num">${formatSqFt(a.ansi.counted)}</td></tr>`,
               )
               .join(""),

@@ -28,6 +28,7 @@ import {
 } from "./path.js";
 import { stairDrawing, type Stair } from "./stairs.js";
 import { formatLength } from "./units.js";
+import { slopeBands, type Slope, type SlopeBand, type ZoneKind } from "./zones.js";
 import { parseVectors, type VectorError } from "./vectors.js";
 
 export const FORMAT_VERSION = 1;
@@ -35,9 +36,12 @@ export const FORMAT_VERSION = 1;
 export interface Zone {
   id: string;
   name?: string;
-  band: CeilingBand | "opening";
+  /** A ceiling band, an opening to below, or "sloped" (then `slope` says how). */
+  band: ZoneKind;
   origin: Point;
   vectors: string;
+  /** Sloped ceiling over the zone; its points are relative to `origin`. Set when band is "sloped". */
+  slope?: Slope;
 }
 
 /**
@@ -202,6 +206,8 @@ export interface ZoneResult extends ShapeResult {
   zone: Zone;
   /** False if some of the zone lies outside its area's outline. */
   inside: boolean;
+  /** For a sloped zone: its under-5', 5'–7' and 7'+ parts. */
+  bands?: SlopeBand[];
 }
 
 export interface WallResult {
@@ -304,6 +310,13 @@ export function computeArea(area: Area, opts: { ansi?: boolean } = {}): AreaResu
     for (const e of s.errors) problems.push(`zone ${label}: "${e.text}": ${e.message}`);
     if (!s.closure.closed && s.path.segments.length > 0) problems.push(`zone ${label}: outline does not close`);
     if (!inside) problems.push(`zone ${label}: extends outside the area`);
+    if (zone.band === "sloped") {
+      if (!zone.slope) {
+        problems.push(`zone ${label}: sloped ceiling has no heights; counted at the area's ceiling`);
+        return { ...s, zone, inside };
+      }
+      return { ...s, zone, inside, bands: slopeBands(flatten(s.path), zone.origin, zone.slope, s.area) };
+    }
     return { ...s, zone, inside };
   });
 
@@ -341,7 +354,13 @@ export function computeArea(area: Area, opts: { ansi?: boolean } = {}): AreaResu
       connected: area.connected,
       ceiling: area.ceiling,
       grossArea: shape.area,
-      zones: zones.map((z) => ({ band: z.zone.band, area: z.area })),
+      zones: zones.flatMap((z): { band: CeilingBand | "opening"; area: number }[] =>
+        z.zone.band !== "sloped"
+          ? [{ band: z.zone.band, area: z.area }]
+          : z.bands
+            ? z.bands.map((b) => ({ band: b.band, area: b.area }))
+            : [{ band: area.ceiling, area: z.area }],
+      ),
       override: area.override,
     },
     opts,

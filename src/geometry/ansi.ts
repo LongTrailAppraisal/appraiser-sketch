@@ -7,7 +7,20 @@ export type CeilingBand = "full" | "reduced" | "low"; // ≥7', 5'–7', <5'
 
 export type AreaKind = "living" | "garage" | "porch" | "deck" | "patio" | "carport" | "breezeway" | "other";
 
-export type Grade = "above" | "below";
+/**
+ * "partial" is a level partly below grade: a walkout basement or the lower
+ * level of a split-level. ANSI Z765 counts it as below grade (if any part of
+ * a level is below grade, the whole level is), so it goes in the below-grade
+ * buckets; it is kept apart for UAD 3.6 (GradeLevelType PartiallyBelowGrade).
+ */
+export type Grade = "above" | "partial" | "below";
+
+export const GRADES: readonly Grade[] = ["above", "partial", "below"];
+
+/** True for levels ANSI counts as below grade (fully or partly). */
+export function isBelowGrade(grade: Grade): boolean {
+  return grade !== "above";
+}
 
 /**
  * Report buckets. The living buckets follow the six UAD 3.6 area fields
@@ -161,7 +174,7 @@ export function classify(input: AnsiInput, opts: ClassifyOptions = {}): AnsiResu
     return result(input.kind, gross);
   }
 
-  const above = input.grade === "above";
+  const above = !isBelowGrade(input.grade);
 
   if (!input.finished) {
     return result(above ? "unfinishedAbove" : "unfinishedBelow", withoutOpenings);

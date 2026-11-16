@@ -57,12 +57,14 @@ Sketch
          ├─ walls[]       interior walls: { origin, vectors } open runs, floor plan only
          ├─ vectors       the typed vector text — the source of truth
          ├─ kind          living | garage | porch | deck | patio | carport | breezeway | other
-         ├─ grade         above | below
+         ├─ grade         above | partial (walkout, split-level lower) | below
          ├─ finished      true / false
          ├─ level         label: "1", "2", "3", "attic", "basement"
          ├─ connected     reachable through finished space (default true)
          ├─ ceiling       default band for the area: full (≥7'), reduced (5'–7'), low (<5')
-         ├─ zones[]       sub-areas with another ceiling band, or an opening to below
+         ├─ zones[]       sub-areas with another ceiling band, an opening to below,
+         │                or a sloped ceiling (slope: from/to points relative to
+         │                the zone, fromHeight/toHeight in feet)
          └─ override?     { treatAs: gla | not-gla, note }  — non-ANSI, note required
 ```
 
@@ -202,6 +204,19 @@ unfinished living area per level for this.
   any outline in the walls box; zones drag and snap to corners. The walls
   box shows the ceiling breakdown; labels show counted and gross area.
   Overlapping zones are flagged (the overlap would count twice).
+- Sloped ceilings (idea from the sketchie format's ceiling zones): **Add
+  slope** makes a strip along a wall from the height at the wall (knee wall),
+  the height it rises to, and how far from the wall it gets there. The
+  height runs straight between and stays level beyond; the zone is split at
+  the 5' and 7' lines into the three bands (shaded on the drawing), so an
+  edited outline (a dormer cut out) still counts right. Changing "Over" on a
+  plain strip resizes the strip; on a hand-drawn outline only the slope
+  changes.
+- Split levels: level names `lower`, `main`, `upper` sort lower → main →
+  upper → 2 (any number such as 1.5 also works). Grade **partly below
+  grade** (walkout basement, split-level lower level) counts as below grade
+  under ANSI and is kept apart per level for UAD 3.6 `GradeLevelType`
+  `PartiallyBelowGrade`.
 - Stair handles: a selected stair shows round handles at the end of each
   flight and on its side; dragging resizes to the nearest inch.
 - Labels: area labels drag freely (offset saved in the file, double-click

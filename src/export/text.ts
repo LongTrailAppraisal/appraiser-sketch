@@ -3,7 +3,7 @@
  * into report form fields and comment boxes.
  */
 
-import { BUCKET_LABELS, levelRank, type Bucket, type SketchResult, type StructureResult } from "../geometry/index.js";
+import { BUCKET_LABELS, isBelowGrade, levelRank, type Bucket, type Grade, type SketchResult, type StructureResult } from "../geometry/index.js";
 
 const sf = (v: number) => `${Math.round(v).toLocaleString("en-US")} sf`;
 
@@ -13,6 +13,9 @@ const LEVEL_NAMES: Record<string, string> = {
   "3": "Level 3",
   attic: "Attic",
   basement: "Basement",
+  lower: "Lower level",
+  main: "Main level",
+  upper: "Upper level",
 };
 
 export function levelName(level: string): string {
@@ -35,7 +38,7 @@ export interface TotalGroup {
   /** Reported (rounded) totals in this group, non-zero only. */
   rows: { bucket: Bucket; label: string; sf: number }[];
   /** The group's square feet by level, lowest floor first. */
-  levels: { level: string; sf: number }[];
+  levels: { level: string; grade: Grade; sf: number }[];
 }
 
 /** A structure's reported totals grouped the same way as the printed area list. Empty groups are left out. */
@@ -46,8 +49,8 @@ export function totalGroups(s: StructureResult): TotalGroup[] {
       rows: g.buckets.filter((b) => s.reported[b] > 0).map((b) => ({ bucket: b, label: BUCKET_LABELS[b], sf: s.reported[b] })),
       levels: g.levels
         ? s.levels
-            .filter((l) => l.grade === g.levels!.grade)
-            .map((l) => ({ level: l.level, sf: Math.round(g.levels!.finished ? l.finished : l.unfinished) }))
+            .filter((l) => (isBelowGrade(l.grade) ? "below" : "above") === g.levels!.grade)
+            .map((l) => ({ level: l.level, grade: l.grade, sf: Math.round(g.levels!.finished ? l.finished : l.unfinished) }))
             .filter((l) => l.sf > 0)
             .sort((a, b) => levelRank(a.level) - levelRank(b.level))
         : [],

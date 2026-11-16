@@ -4,10 +4,16 @@ import { computeShape, containsPoint, type Area } from "./model.js";
 import { area as pathArea, flatten, type Point } from "./path.js";
 import { stairDrawing, type Stair } from "./stairs.js";
 
-/** Order of levels from the bottom: basement, 1, 2, … then attic. */
+/**
+ * Order of levels from the bottom: basement, 1, 2, … then attic. Split-level
+ * names fit in: lower with the basement, main as 1, upper half a floor up
+ * (any number works too, e.g. 1.5).
+ */
 export function levelRank(level: string): number {
   const l = level.trim().toLowerCase();
-  if (l.startsWith("base") || l === "b" || l === "lower") return -1;
+  if (l.startsWith("base") || l === "b" || l.startsWith("lower")) return -1;
+  if (l.startsWith("main") || l.startsWith("entry")) return 1;
+  if (l.startsWith("upper")) return 1.5;
   if (l.startsWith("attic")) return 99;
   const n = Number.parseFloat(l);
   return Number.isFinite(n) ? n : 0;

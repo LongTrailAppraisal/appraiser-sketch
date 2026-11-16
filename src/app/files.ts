@@ -8,6 +8,7 @@
 import {
   BUCKETS,
   FORMAT_VERSION,
+  GRADES,
   STAIR_TYPES,
   STRUCTURE_KINDS,
   ZONE_BANDS,
@@ -24,6 +25,8 @@ import {
   type Structure,
   type TextLabel,
   type Zone,
+  type ZoneKind,
+  type Slope,
 } from "../geometry/index.js";
 import { newArea, newId } from "./store.js";
 
@@ -96,13 +99,32 @@ function defined<T extends object>(o: T): { [K in keyof T]: Exclude<T[K], undefi
 const AREA_KINDS: readonly AreaKind[] = ["living", "garage", "porch", "deck", "patio", "carport", "breezeway", "other"];
 const CEILINGS: readonly CeilingBand[] = ["full", "reduced", "low"];
 
+function readSlope(z: Raw, where: string): Slope | undefined {
+  if (z.slope === undefined) return undefined;
+  if (!isObject(z.slope)) damaged(`${where}: slope`);
+  const o = z.slope as Raw;
+  const w = `${where}, slope`;
+  const height = (key: string) => {
+    const v = num(o, key, w);
+    return v !== undefined && v >= 0 ? v : damaged(`${w}: ${key}`);
+  };
+  return {
+    from: point(o, "from", w) ?? damaged(`${w}: from`),
+    to: point(o, "to", w) ?? damaged(`${w}: to`),
+    fromHeight: height("fromHeight"),
+    toHeight: height("toHeight"),
+  };
+}
+
 function readZone(z: Raw, where: string): Zone {
+  const kinds: ZoneKind[] = [...ZONE_BANDS.map((b) => b.value), "sloped"];
   return {
     id: str(z, "id", where) ?? newId("z"),
     ...defined({ name: str(z, "name", where) }),
-    band: oneOf(z, "band", ZONE_BANDS.map((b) => b.value), where) ?? damaged(`${where}: band`),
+    band: oneOf(z, "band", kinds, where) ?? damaged(`${where}: band`),
     origin: point(z, "origin", where) ?? damaged(`${where}: origin`),
     vectors: str(z, "vectors", where) ?? "",
+    ...defined({ slope: readSlope(z, where) }),
   };
 }
 
@@ -153,7 +175,7 @@ function readArea(a: Raw, where: string): Area {
       id: str(a, "id", where) ?? newId("a"),
       name: str(a, "name", where),
       kind: oneOf(a, "kind", AREA_KINDS, where),
-      grade: oneOf(a, "grade", ["above", "below"] as const, where),
+      grade: oneOf(a, "grade", GRADES, where),
       finished: bool(a, "finished", where),
       level: str(a, "level", where),
       connected: bool(a, "connected", where),

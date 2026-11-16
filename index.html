@@ -122,11 +122,15 @@
                 <option value="3"></option>
                 <option value="attic"></option>
                 <option value="basement"></option>
+                <option value="lower">Split-level: lower</option>
+                <option value="main">Split-level: main</option>
+                <option value="upper">Split-level: upper</option>
               </datalist>
               <label>Grade
                 <select id="p-grade">
                   <option value="above">Above grade</option>
-                  <option value="below">Below grade (any part)</option>
+                  <option value="partial">Partly below grade (walkout, split-level lower)</option>
+                  <option value="below">Fully below grade</option>
                 </select>
               </label>
               <label>Ceiling
@@ -184,7 +188,14 @@
           <div class="form">
             <div id="zone-form" class="form">
               <label>Zone name <input id="z-name" type="text" placeholder="optional" /></label>
-              <label>Ceiling <select id="z-band"></select></label>
+              <label id="z-band-row">Ceiling <select id="z-band"></select></label>
+              <div id="z-slope-edit" class="slope-fields">
+                <div class="pair">
+                  <label>Height at wall <input id="z-e-wall" type="text" /></label>
+                  <label>Rises to <input id="z-e-top" type="text" /></label>
+                </div>
+                <label>Over (from the wall) <input id="z-e-run" type="text" /></label>
+              </div>
               <div class="row-buttons"><button id="btn-delete-zone" class="danger">Delete zone</button></div>
               <div class="note-small">Type the zone's outline in the box below, or drag it; it snaps to corners.</div>
             </div>
@@ -209,8 +220,17 @@
                 <button id="btn-add-strip" title="A strip the full length of the area's side">Add strip</button>
                 <button id="btn-add-zone" title="Type any outline">Custom zone</button>
               </div>
+              <div class="note-small sub-head">Sloped ceiling along the wall (knee wall up to the flat ceiling):</div>
+              <div class="pair">
+                <label>Height at wall <input id="z-slope-wall" type="text" value="2'" /></label>
+                <label>Rises to <input id="z-slope-top" type="text" value="8'" /></label>
+              </div>
+              <div class="pair">
+                <label>Over (from the wall) <input id="z-slope-run" type="text" value="6'" /></label>
+                <button id="btn-add-slope" title="A sloped-ceiling strip the full length of the side; the 5' and 7' lines are worked out for you">Add slope</button>
+              </div>
             </details>
-            <div class="note-small">Mark space with low ceilings or open to below. Under 5' and openings aren't counted; if less than half of the rest is 7' or more, the area is non-standard (ANSI Z765).</div>
+            <div class="note-small">Mark space with low ceilings or open to below, or a sloped ceiling (its 5' and 7' lines are worked out from the heights). Under 5' and openings aren't counted; if less than half of the rest is 7' or more, the area is non-standard (ANSI Z765).</div>
           </div>
         </section>
 

@@ -157,7 +157,7 @@ button.hidden, .add-menu.hidden { display: none; }
 .chips button.selected { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .chips .empty { color: var(--muted); }
 .note-small { color: var(--muted); font-size: 11.5px; }
-#stair-form.hidden, #zone-form.hidden, #label-edit.hidden, .panel.hidden { display: none; }
+#stair-form.hidden, #zone-form.hidden, #z-band-row.hidden, .slope-fields.hidden, #label-edit.hidden, .panel.hidden { display: none; }
 #stair-form.one-flight .two-flight, #stair-form.no-turn .turning { visibility: hidden; }
 input.invalid { border-color: var(--warn); }
 details summary { cursor: pointer; color: var(--muted); }
@@ -194,6 +194,11 @@ details[open] { display: flex; flex-direction: column; gap: 6px; }
 .zone-low { fill: rgba(128, 128, 128, 0.16); }
 .zone-reduced { fill: rgba(128, 128, 128, 0.07); }
 .zone-opening { fill: rgba(179, 38, 30, 0.1); }
+.zone-part { stroke: none; pointer-events: none; }
+.zone-part.zone-low { fill: rgba(128, 128, 128, 0.16); }
+.zone-part.zone-reduced { fill: rgba(128, 128, 128, 0.07); }
+.zone-part.zone-full { fill: none; }
+.zone-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 1 3; fill: none; pointer-events: none; }
 .zone.selected { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 3; }
 .zone.outside { stroke: var(--warn); }
 .labels text.start-hint { text-anchor: start; font-size: 12px; fill: var(--accent); }

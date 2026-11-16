@@ -12,7 +12,7 @@ import { cornerAngles, formatAngle,
   signedPolygonArea,
   stairDrawing,
   stairHandles,
-  ZONE_BANDS,
+  zoneShort,
   type AreaResult,
   type Path,
   type Stair,
@@ -240,11 +240,16 @@ export function renderSketch(result: SketchResult, opts: RenderOptions): string 
         const zp = wp.map((p) => toScreen(v, p));
         if (zp.length >= 3) {
           const zsel = selected && selection?.zone === z.zone.id;
+          // A sloped ceiling: shade its under-5' and 5'–7' parts under the zone's outline.
+          for (const b of z.bands ?? []) {
+            const bp = b.outline.map((p) => toScreen(v, p));
+            parts.push(`<path class="zone-part zone-${b.band}" d="M${bp.map((p) => `${n(p.x)},${n(p.y)}`).join("L")}Z"/>`);
+          }
           parts.push(
             `<path class="zone zone-${z.zone.band}${zsel ? " selected" : ""}${z.inside ? "" : " outside"}" ${data} data-zone="${esc(z.zone.id)}" d="M${zp.map((p) => `${n(p.x)},${n(p.y)}`).join("L")}Z"/>`,
           );
           const c = toScreen(v, centroid(wp));
-          const short = ZONE_BANDS.find((b) => b.value === z.zone.band)?.short ?? z.zone.band;
+          const short = zoneShort(z.zone);
           labels.push(`<text class="zone-label" x="${n(c.x)}" y="${n(c.y)}">${esc(z.zone.name ? `${z.zone.name} · ${short}` : short)}</text>`);
         }
       }

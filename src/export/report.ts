@@ -4,7 +4,7 @@
  * block, plus the drawing as SVG. Format: docs/REPORT_EXPORT.md.
  */
 
-import { STRUCTURE_KINDS, type Bucket, type SketchResult } from "../geometry/index.js";
+import { STRUCTURE_KINDS, type Bucket, type Grade, type SketchResult } from "../geometry/index.js";
 import { standaloneSvg } from "./svg.js";
 import { levelName, totalGroups } from "./text.js";
 
@@ -21,6 +21,8 @@ export interface ReportRow {
   bucket?: Bucket;
   /** Set on per-level rows, which break down the group above them. */
   level?: string;
+  /** Per-level rows: above, partial (partly below grade) or below. */
+  grade?: Grade;
 }
 
 export interface ReportStructure {
@@ -53,7 +55,7 @@ export function reportExport(result: SketchResult, screenScale?: number): Report
       const totals: ReportRow[] = [];
       for (const g of totalGroups(s)) {
         for (const r of g.rows) totals.push({ label: r.label, area: r.sf, group: g.name, bucket: r.bucket });
-        for (const l of g.levels) totals.push({ label: levelName(l.level), area: l.sf, group: g.name, level: l.level });
+        for (const l of g.levels) totals.push({ label: levelName(l.level), area: l.sf, group: g.name, level: l.level, grade: l.grade });
       }
       const buckets: Partial<Record<Bucket, number>> = {};
       for (const [b, v] of Object.entries(s.reported) as [Bucket, number][]) if (v > 0 && b !== "excluded") buckets[b] = v;
