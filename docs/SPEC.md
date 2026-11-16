@@ -212,6 +212,10 @@ unfinished living area per level for this.
   edited outline (a dormer cut out) still counts right. Changing "Over" on a
   plain strip resizes the strip; on a hand-drawn outline only the slope
   changes.
+  Any zone can be made sloped by choosing **Sloped ceiling** under its
+  Ceiling: the slope starts low along the side chosen under "Add a zone"
+  and rises across the whole zone; **Low side** turns it to another wall.
+  Choosing a flat band again drops the slope.
 - Split levels: level names `lower`, `main`, `upper` sort lower → main →
   upper → 2 (any number such as 1.5 also works). Grade **partly below
   grade** (walkout basement, split-level lower level) counts as below grade

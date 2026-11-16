@@ -30,6 +30,10 @@ import {
   stripZone,
   slopeStrip,
   setSlopeRun,
+  slopeFromSide,
+  slopeSide,
+  depthFrom,
+  type ZoneKind,
   zoneLabel,
   zoneShort,
   applyArrow,
@@ -1270,8 +1274,8 @@ const zones = {
   bandNew: $<HTMLSelectElement>("z-band-new"),
   depth: $<HTMLInputElement>("z-depth"),
   inset: $<HTMLInputElement>("z-inset"),
-  bandRow: $<HTMLLabelElement>("z-band-row"),
   slopeEdit: $<HTMLDivElement>("z-slope-edit"),
+  eSide: $<HTMLSelectElement>("z-e-side"),
   eWall: $<HTMLInputElement>("z-e-wall"),
   eTop: $<HTMLInputElement>("z-e-top"),
   eRun: $<HTMLInputElement>("z-e-run"),
@@ -1280,7 +1284,8 @@ const zones = {
   slopeRun: $<HTMLInputElement>("z-slope-run"),
 };
 const bandOptions = ZONE_BANDS.map((b) => `<option value="${b.value}">${esc(b.label)}</option>`).join("");
-zones.band.innerHTML = bandOptions;
+// The zone's own Ceiling list can also make it sloped (new zones get a slope from "Add slope").
+zones.band.innerHTML = bandOptions + `<option value="sloped">Sloped ceiling</option>`;
 zones.bandNew.innerHTML = bandOptions;
 
 /** Area whose (empty) zones panel was opened with "+ Ceiling / opening". */
@@ -1323,10 +1328,10 @@ function drawZones() {
   if (!z) return;
   sync(zones.name, z.name ?? "");
   const sloped = z.band === "sloped";
-  zones.bandRow.classList.toggle("hidden", sloped);
   zones.slopeEdit.classList.toggle("hidden", !sloped);
-  if (!sloped) sync(zones.band, z.band);
-  else if (z.slope) {
+  sync(zones.band, z.band);
+  if (sloped && z.slope) {
+    sync(zones.eSide, slopeSide(z.slope) ?? "");
     sync(zones.eWall, formatLength(z.slope.fromHeight));
     sync(zones.eTop, formatLength(z.slope.toHeight));
     sync(zones.eRun, formatLength(Math.hypot(z.slope.to.x - z.slope.from.x, z.slope.to.y - z.slope.from.y)));
@@ -1353,8 +1358,7 @@ zones.eRun.addEventListener("input", () => {
   const v = slopeLength(zones.eRun, true);
   if (v === null) return;
   // Change how far the slope runs before the ceiling levels off; a plain strip grows or shrinks with it.
-  const sel = store.state.selection;
-  const zr = result.structures.flatMap((s) => s.areas).find((a) => a.area.id === sel?.area)?.zones.find((z) => z.zone.id === sel?.zone);
+  const zr = selectedZoneResult();
   if (!zr) return;
   const outline = flatten(zr.path);
   editZone((z) => {
@@ -1387,7 +1391,50 @@ zones.name.addEventListener("input", () =>
     else delete z.name;
   }, "zone-name"),
 );
-zones.band.addEventListener("change", () => editZone((z) => (z.band = zones.band.value as ZoneBand)));
+/** The selected zone's computed result (outline, area), if any. */
+function selectedZoneResult() {
+  const sel = store.state.selection;
+  return result.structures.flatMap((s) => s.areas).find((a) => a.area.id === sel?.area)?.zones.find((z) => z.zone.id === sel?.zone);
+}
+
+zones.band.addEventListener("change", () => {
+  const kind = zones.band.value as ZoneKind;
+  if (kind !== "sloped") {
+    editZone((z) => {
+      z.band = kind;
+      delete z.slope;
+    });
+    return;
+  }
+  // Make it sloped: low along the side chosen under "Add a zone", rising across the whole zone,
+  // with the heights from there too. Adjust them in the fields that appear.
+  const zr = selectedZoneResult();
+  if (!zr || zr.path.segments.length === 0) {
+    say("Type the zone's outline first, then make it sloped");
+    sync(zones.band, zr?.zone.band ?? "full");
+    return;
+  }
+  const b = bounds(zr.path);
+  const side = zones.side.value as Side;
+  const wall = parseLength(zones.slopeWall.value) ?? 2;
+  const top = parseLength(zones.slopeTop.value) ?? 8;
+  const run = depthFrom(b, side);
+  editZone((z) => {
+    z.band = "sloped";
+    z.slope = slopeFromSide(b, z.origin, side, run, wall, top);
+  });
+});
+
+zones.eSide.addEventListener("change", () => {
+  const zr = selectedZoneResult();
+  if (!zr?.zone.slope || zr.path.segments.length === 0) return;
+  const side = zones.eSide.value as Side;
+  const b = bounds(zr.path);
+  const { from, to, fromHeight, toHeight } = zr.zone.slope;
+  // Keep the heights; keep the run unless it no longer fits the zone that way.
+  const run = Math.min(Math.hypot(to.x - from.x, to.y - from.y), depthFrom(b, side));
+  editZone((z) => (z.slope = slopeFromSide(b, z.origin, side, run, fromHeight, toHeight)));
+});
 
 function addZone(z: Omit<Area["zones"][number], "id">) {
   setCollapsed(zones.panel, false);

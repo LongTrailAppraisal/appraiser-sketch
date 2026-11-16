@@ -8,6 +8,9 @@ import {
   slopeBands,
   slopeHeightAt,
   setSlopeRun,
+  slopeFromSide,
+  slopeSide,
+  depthFrom,
   slopeStrip,
   type Area,
 } from "../src/geometry/index.js";
@@ -118,5 +121,24 @@ describe("changing a slope's run", () => {
     const r = setSlopeRun(z, outlineOf(z), 9);
     expect(r.vectors).toBe(z.vectors);
     expect(r.slope.to).toEqual({ x: 0, y: 9 });
+  });
+});
+
+describe("custom zones made sloped", () => {
+  const dormerCut = { origin: { x: 0, y: 18 }, vectors: "R10 U6 L4 D2 L2 U2 L4 D6" }; // a notch where a dormer sits
+  it("slopes from any side of the outline, and reports that side back", () => {
+    const outline = flatten(parseVectors(dormerCut.vectors, dormerCut.origin).path);
+    const b = bounds(parseVectors(dormerCut.vectors, dormerCut.origin).path);
+    for (const side of ["north", "south", "east", "west"] as const) {
+      const s = slopeFromSide(b, dormerCut.origin, side, depthFrom(b, side), 2, 8);
+      expect(slopeSide(s)).toBe(side);
+      const wall = { south: { x: 5, y: 18 }, north: { x: 5, y: 24 }, west: { x: 0, y: 20 }, east: { x: 10, y: 20 } }[side];
+      expect(slopeHeightAt(s, dormerCut.origin, wall)).toBeCloseTo(2, 9);
+      const bands = slopeBands(outline, dormerCut.origin, s);
+      expect(bands.reduce((t, x) => t + x.area, 0)).toBeCloseTo(56, 9); // 60 less the 2x2 notch
+    }
+  });
+  it("an angled slope has no side", () => {
+    expect(slopeSide({ from: { x: 0, y: 0 }, to: { x: 3, y: 4 }, fromHeight: 2, toHeight: 8 })).toBeNull();
   });
 });

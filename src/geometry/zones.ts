@@ -249,3 +249,42 @@ export function setSlopeRun(
   }
   return fallback;
 }
+
+/** Unit direction a slope rises in, from a low side: off the south wall it rises north, and so on. */
+const RISES: Record<Side, Point> = { south: { x: 0, y: 1 }, north: { x: 0, y: -1 }, west: { x: 1, y: 0 }, east: { x: -1, y: 0 } };
+
+/**
+ * A slope for any zone outline, low along one side of its bounding box:
+ * `wallHeight` on that side, rising to `topHeight` `run` in from it. Points
+ * are relative to the zone's `origin`.
+ */
+export function slopeFromSide(b: Bounds, origin: Point, side: Side, run: number, wallHeight: number, topHeight: number): Slope {
+  const start: Record<Side, Point> = {
+    south: { x: b.minX, y: b.minY },
+    north: { x: b.minX, y: b.maxY },
+    west: { x: b.minX, y: b.minY },
+    east: { x: b.maxX, y: b.minY },
+  };
+  const s = start[side];
+  const d = RISES[side];
+  const from = { x: s.x - origin.x, y: s.y - origin.y };
+  return { from, to: { x: from.x + d.x * run, y: from.y + d.y * run }, fromHeight: wallHeight, toHeight: topHeight };
+}
+
+/** The side a slope is low along, or null if it runs on an angle. */
+export function slopeSide(slope: Slope): Side | null {
+  const dx = slope.to.x - slope.from.x;
+  const dy = slope.to.y - slope.from.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-9) return null;
+  for (const side of Object.keys(RISES) as Side[]) {
+    const r = RISES[side];
+    if (Math.abs(dx / len - r.x) < 1e-6 && Math.abs(dy / len - r.y) < 1e-6) return side;
+  }
+  return null;
+}
+
+/** How deep a bounding box is in the direction a slope rises from `side`. */
+export function depthFrom(b: Bounds, side: Side): number {
+  return side === "south" || side === "north" ? b.maxY - b.minY : b.maxX - b.minX;
+}

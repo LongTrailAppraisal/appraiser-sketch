@@ -188,8 +188,17 @@
           <div class="form">
             <div id="zone-form" class="form">
               <label>Zone name <input id="z-name" type="text" placeholder="optional" /></label>
-              <label id="z-band-row">Ceiling <select id="z-band"></select></label>
+              <label>Ceiling <select id="z-band"></select></label>
               <div id="z-slope-edit" class="slope-fields">
+                <label>Low side
+                  <select id="z-e-side">
+                    <option value="north">North wall</option>
+                    <option value="south">South wall</option>
+                    <option value="east">East wall</option>
+                    <option value="west">West wall</option>
+                    <option value="" disabled>On an angle</option>
+                  </select>
+                </label>
                 <div class="pair">
                   <label>Height at wall <input id="z-e-wall" type="text" /></label>
                   <label>Rises to <input id="z-e-top" type="text" /></label>
@@ -197,7 +206,7 @@
                 <label>Over (from the wall) <input id="z-e-run" type="text" /></label>
               </div>
               <div class="row-buttons"><button id="btn-delete-zone" class="danger">Delete zone</button></div>
-              <div class="note-small">Type the zone's outline in the box below, or drag it; it snaps to corners.</div>
+              <div class="note-small">Type the zone's outline in the box below, or drag it; it snaps to corners. Any outline can have a sloped ceiling: choose it under Ceiling.</div>
             </div>
             <details id="zone-add" open>
               <summary>Add a zone</summary>
